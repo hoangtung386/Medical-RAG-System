@@ -6,11 +6,14 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
 - **Tra cứu thông minh**: Tìm kiếm thông tin liên quan từ kho dữ liệu PDF tiếng Anh.
 - **Hỗ trợ Tiếng Việt**: Người dùng hỏi bằng tiếng Việt, hệ thống tìm kiếm trong tài liệu tiếng Anh và trả lời lại bằng tiếng Việt.
 - **Trích Dẫn Chính Xác**: Hiển thị nguồn tài liệu cụ thể (Source ID, Tên file, Trang) cho mỗi thông tin được đưa ra.
-- **An Toàn Y Tế**: Tích hợp các quy tắc an toàn (Prompt Engineering) và từ chối các câu hỏi thiếu dữ liệu hoặc mang tính chẩn đoán nguy hiểm.
+- **An Toàn & Bảo Mật**:
+    - Tích hợp đăng nhập (Authentication) để bảo vệ truy cập.
+    - Kiểm soát đầu vào (Input Sanitization) để chống Spam/Attack.
+    - Tích hợp các quy tắc an toàn y tế (Medical Safety Guidelines).
 - **Reranking Tối Ưu**: Sử dụng Cross-Encoder để lọc kết quả, chỉ lấy thông tin có độ tin cậy >30% và xếp hạng lại Top 8.
 - **Tối Ưu Hiệu Năng**: Hỗ trợ 4-bit Quantization giúp chạy mượt mà trên GPU tầm trung.
 - **Offline**: Chạy hoàn toàn trên máy cá nhân, đảm bảo bảo mật dữ liệu.
-- **Giao diện thân thiện**: Sử dụng Gradio Chat Interface với hỗ trợ Streaming và Remote Share.
+- **Giao diện thân thiện**: Gradio Chat Interface với thanh tiến trình (Progress Bar), Streaming và hỗ trợ chia sẻ từ xa (Remote Share).
 
 ## Yêu Cầu Hệ Thống
 - **Python 3.10+**
@@ -37,6 +40,11 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
    python app.py
    ```
    Sau khi model load xong, truy cập đường dẫn hiện ra (thường là `http://127.0.0.1:7860`).
+   
+   **Thông tin đăng nhập mặc định**:
+   - Username: `admin`
+   - Password: `1234`
+   *(Bạn có thể đổi mật khẩu trong file `app.py`, dòng `DEFAULT_AUTH`)*
 
 ## Cấu Trúc Thư Mục
 - `Medical_documents/`: Nơi chứa các file PDF tài liệu y khoa.
