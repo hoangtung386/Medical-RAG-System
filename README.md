@@ -43,7 +43,7 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
    
    **Thông tin đăng nhập mặc định**:
    - Username: `admin`
-   - Password: `1234`
+   - Password: `123456`
    *(Bạn có thể đổi mật khẩu trong file `app.py`, dòng `DEFAULT_AUTH`)*
 
 ## Cấu Trúc Thư Mục
