@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION (CONSTANTS) ---
-MODEL_ID = "unsloth/gpt-oss-20b"
+MODEL_ID = "unsloth/gpt-oss-20b-bnb-4bit"
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DB_PATH = os.path.join(os.getcwd(), "chroma_db")
