@@ -17,7 +17,12 @@ def create_vector_db():
     print(f"Loaded {len(documents)} documents.")
 
     # Split text
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    # Optimized for medical context (keeping sentences/paragraphs together)
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=2500, 
+        chunk_overlap=500,
+        separators=["\n\n", "\n", ". ", " ", ""]
+    )
     texts = text_splitter.split_documents(documents)
     print(f"Split into {len(texts)} chunks.")
 
