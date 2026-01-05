@@ -235,34 +235,52 @@ def chat(message, history, progress=gr.Progress()):
         yield f"Đã xảy ra lỗi hệ thống: {str(e)}"
 
 # --- UI SETUP ---
-with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant") as demo:
+# Removing theme to ensure better compatibility
+with gr.Blocks(title="Medical RAG Assistant") as demo: 
     gr.Markdown(MEDICAL_DISCLAIMER)
     gr.Markdown(f"# Medical RAG Assistant\nModel: {MODEL_ID} | Docs: {TOP_K_RETRIEVAL}->{TOP_K_RERANK}")
     
+    # Define Input Component first (but don't render yet) to link with Examples
+    msg = gr.Textbox(
+        label="Nhập câu hỏi y tế của bạn...", 
+        placeholder="Ví dụ: Triệu chứng của bệnh tiểu đường là gì?",
+        scale=4,
+        render=False
+    )
+
+    # Main Content Area
     with gr.Row():
-        with gr.Column(scale=3):
-            chatbot = gr.Chatbot(height=600, show_label=False)
-            msg = gr.Textbox(label="Nhập câu hỏi y tế của bạn...", placeholder="Ví dụ: Triệu chứng của bệnh tiểu đường là gì?")
-            with gr.Row():
-                submit_btn = gr.Button("Gửi câu hỏi", variant="primary")
-                clear_btn = gr.Button("Xóa")
+        # Chatbot Area (Left/Top)
+        with gr.Column(scale=4):
+            chatbot = gr.Chatbot(height=500, show_label=False, value=[])
+        
+        # Examples Area (Right/Side)
         with gr.Column(scale=1):
             gr.Markdown("### Gợi ý câu hỏi")
-            gr.Examples(
+            examples = gr.Examples(
                 examples=[
                     "Triệu chứng của bệnh tiểu đường type 2 là gì?",
                     "Cách phòng ngừa bệnh tim mạch?",
                     "Tác dụng phụ của aspirin?",
                     "Biến chứng của phẫu thuật thay khớp háng?"
                 ],
-                inputs=msg
+                inputs=[msg] # Now properly linked
             )
+
+    # Input Area (Full Width Below)
+    with gr.Row():
+        msg.render() # Render the text box here
+        submit_btn = gr.Button("Gửi", variant="primary", scale=1)
+        clear_btn = gr.Button("Xóa", scale=1)
 
     # Event Handlers
     def user(user_message, history):
+        if not user_message:
+            return "", history
         return "", history + [[user_message, None]]
 
     def bot(history):
+        if not history: return history
         user_message = history[-1][0]
         bot_message = chat(user_message, history[:-1])
         history[-1][1] = ""
@@ -270,6 +288,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant") as demo:
             history[-1][1] = chunk
             yield history
 
+    # Submission Logic
     msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
         bot, chatbot, chatbot
     )
