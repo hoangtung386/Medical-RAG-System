@@ -246,12 +246,7 @@ demo = gr.ChatInterface(
         "Tác dụng phụ của aspirin?",
         "Biến chứng của phẫu thuật thay khớp háng?"
     ],
-    theme=gr.themes.Soft(), # Re-enable theme as ChatInterface handles it well
-    submit_btn="Gửi câu hỏi",
-    stop_btn="Dừng",
-    retry_btn="Thử lại",
-    undo_btn="Hoàn tác",
-    clear_btn="Xóa lịch sử",
+    theme=gr.themes.Soft()
 )
 
 if __name__ == "__main__":
