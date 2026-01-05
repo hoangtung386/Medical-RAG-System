@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION (CONSTANTS) ---
-MODEL_ID = "unsloth/gpt-oss-20b-bnb-4bit"
+MODEL_ID = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DB_PATH = os.path.join(os.getcwd(), "chroma_db")
@@ -27,14 +27,14 @@ MAX_INPUT_LEN = 2000
 MIN_INPUT_LEN = 5
 TOP_K_RETRIEVAL = 10
 TOP_K_RERANK = 8
-TEMPERATURE = 0.7
+TEMPERATURE = 0.6 # Slightly lower for Llama 3 to reduce hallucinations
 MAX_NEW_TOKENS = 512
 
 # Security
 DEFAULT_AUTH = ("admin", "123456") # Change this!
 
 MEDICAL_DISCLAIMER = """
-### CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
+### ⚠️ CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
 1. **Mục đích tham khảo**: Công cụ này chỉ cung cấp thông tin y tế tổng quát để tham khảo, được trích xuất từ tài liệu có sẵn.
 2. **Không thay thế bác sĩ**: Thông tin **KHÔNG** có giá trị chẩn đoán, điều trị hay tư vấn y khoa chính thức.
 3. **Miễn trừ trách nhiệm**: Người dùng tự chịu trách nhiệm khi sử dụng thông tin. Luôn tham khảo ý kiến bác sĩ hoặc chuyên gia y tế cho các vấn đề sức khỏe cụ thể.
@@ -69,8 +69,7 @@ try:
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4",
-        llm_int8_enable_fp32_cpu_offload=True
+        bnb_4bit_quant_type="nf4"
     )
     
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
