@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION (CONSTANTS) ---
 MODEL_ID = "unsloth/gpt-oss-20b"
-RERANKER_MODEL = "cross-encoder/mmarco-mMiniLM-v2-L12-H384-v1"
+RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DB_PATH = os.path.join(os.getcwd(), "chroma_db")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
