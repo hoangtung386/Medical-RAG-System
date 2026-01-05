@@ -350,5 +350,6 @@ if __name__ == "__main__":
         share=True,
         server_name="0.0.0.0",
         auth=DEFAULT_AUTH,
-        root_path=None
+        debug=True,
+        show_error=True
     )
