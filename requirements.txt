@@ -1,0 +1,15 @@
+torch
+transformers
+accelerate
+bitsandbytes
+langchain
+langchain-community
+langchain-huggingface
+chromadb
+pypdf
+sentence-transformers
+gradio
+protobuf
+scipy
+tiktoken
+einops
