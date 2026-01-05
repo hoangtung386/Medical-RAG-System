@@ -17,7 +17,7 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
 
 ## Yêu Cầu Hệ Thống
 - **Python 3.10+**
-- **GPU**: Khuyên dùng NVIDIA GPU (VRAM > 12GB) để chạy mô hình 20B parameters mượt mà (sử dụng 4-bit quantization nếu cần). Nếu chạy CPU sẽ rất chậm.
+- **GPU**: Khuyên dùng NVIDIA GPU (VRAM > 8GB) để chạy mô hình 8B parameters mượt mà (sử dụng 4-bit quantization).
 
 ## Cài Đặt
 
