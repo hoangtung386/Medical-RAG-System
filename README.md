@@ -5,9 +5,12 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
 ## Tính Năng
 - **Tra cứu thông minh**: Tìm kiếm thông tin liên quan từ kho dữ liệu PDF tiếng Anh.
 - **Hỗ trợ Tiếng Việt**: Người dùng hỏi bằng tiếng Việt, hệ thống tìm kiếm trong tài liệu tiếng Anh và trả lời lại bằng tiếng Việt.
-- **Reranking Tối Ưu**: Sử dụng kỹ thuật Cross-Encoder Reranking để sắp xếp lại kết quả tìm kiếm, lấy 8 đoạn văn liên quan nhất giúp tăng độ chính xác.
+- **Trích Dẫn Chính Xác**: Hiển thị nguồn tài liệu cụ thể (Source ID, Tên file, Trang) cho mỗi thông tin được đưa ra.
+- **An Toàn Y Tế**: Tích hợp các quy tắc an toàn (Prompt Engineering) và từ chối các câu hỏi thiếu dữ liệu hoặc mang tính chẩn đoán nguy hiểm.
+- **Reranking Tối Ưu**: Sử dụng Cross-Encoder để lọc kết quả, chỉ lấy thông tin có độ tin cậy >30% và xếp hạng lại Top 8.
+- **Tối Ưu Hiệu Năng**: Hỗ trợ 4-bit Quantization giúp chạy mượt mà trên GPU tầm trung.
 - **Offline**: Chạy hoàn toàn trên máy cá nhân, đảm bảo bảo mật dữ liệu.
-- **Giao diện thân thiện**: Sử dụng Gradio Chat Interface.
+- **Giao diện thân thiện**: Sử dụng Gradio Chat Interface với hỗ trợ Streaming và Remote Share.
 
 ## Yêu Cầu Hệ Thống
 - **Python 3.10+**
