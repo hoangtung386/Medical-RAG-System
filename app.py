@@ -9,21 +9,17 @@ from threading import Thread
 import numpy as np
 import logging
 
-# --- LOGGER SETUP ---
+# LOGGER SETUP
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- UPGRADED CONFIGURATION ---
-# ✨ NEW: DeepSeek-R1 with reasoning capabilities
-MODEL_ID = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"  # Reasoning model
-# Alternative: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B" or "Qwen/Qwen2.5-7B-Instruct"
+# UPGRADED CONFIGURATION
+# NEW: Ministral-3-8B-Reasoning - MUCH better Vietnamese support!
+MODEL_ID = "mistralai/Ministral-3-8B-Reasoning-2512"  
+# This model has excellent multilingual capabilities and follows system prompts strictly
 
-RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"  # Keep this - it's excellent
-
-# ✨ NEW: BGE-M3 - SOTA multilingual embedding
-EMBEDDING_MODEL = "BAAI/bge-m3"  # Much better than old MiniLM
-# Alternative: "Alibaba-NLP/gte-multilingual-base" (lighter)
-# Alternative: "intfloat/multilingual-e5-large-instruct" (instruction-tuned)
+RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+EMBEDDING_MODEL = "BAAI/bge-m3"  # Keep the upgraded embedding
 
 DB_PATH = os.path.join(os.getcwd(), "chroma_db")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -35,34 +31,34 @@ MAX_INPUT_LEN = 2000
 MIN_INPUT_LEN = 5
 TOP_K_RETRIEVAL = 10
 TOP_K_RERANK = 8
-TEMPERATURE = 0.7  # Slightly higher for reasoning models
-MAX_NEW_TOKENS = 768  # More tokens for chain-of-thought reasoning
+TEMPERATURE = 0.7  # Mistral recommends 0.7 for reasoning models
+MAX_NEW_TOKENS = 768
 
 # Security
 DEFAULT_AUTH = ("admin", "123456")  # ⚠️ CHANGE THIS!
 
 MEDICAL_DISCLAIMER = """
-### ⚠️ CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
-1. **Mục đích tham khảo**: Công cụ này chỉ cung cấp thông tin y tế tổng quát để tham khảo, được trích xuất từ tài liệu có sẵn.
-2. **Không thay thế bác sĩ**: Thông tin **KHÔNG** có giá trị chẩn đoán, điều trị hay tư vấn y khoa chính thức.
-3. **Miễn trừ trách nhiệm**: Người dùng tự chịu trách nhiệm khi sử dụng thông tin. Luôn tham khảo ý kiến bác sĩ hoặc chuyên gia y tế cho các vấn đề sức khỏe cụ thể.
+### CẢNH BÁO Y TẾ QUAN TRỌNG
+1. **Mục đích tham khảo**: Công cụ này chỉ cung cấp thông tin y tế tổng quát để tham khảo.
+2. **Không thay thế bác sĩ**: Thông tin **KHÔNG** có giá trị chẩn đoán, điều trị hay tư vấn y khoa.
+3. **Miễn trừ trách nhiệm**: Người dùng tự chịu trách nhiệm khi sử dụng thông tin. Luôn tham khảo ý kiến bác sĩ.
 
-**🆕 Powered by**: DeepSeek-R1 (Reasoning Model) + BGE-M3 (Multilingual Embedding)
+Powered by: Ministral-3-8B-Reasoning (Multilingual + Reasoning) + BGE-M3 (SOTA Embedding)
 """
 
 print(f"Device: {DEVICE}")
 
-# --- INITIALIZATION ---
+# INITIALIZATION
 
-# Load Retriever with NEW embedding model
+# Load Retriever with BGE-M3
 print(f"Loading Vector Database with {EMBEDDING_MODEL}...")
 embedding_function = HuggingFaceEmbeddings(
     model_name=EMBEDDING_MODEL,
-    model_kwargs={'device': DEVICE if DEVICE == 'cuda' else 'cpu'}  # Use GPU if available
+    model_kwargs={'device': DEVICE if DEVICE == 'cuda' else 'cpu'}
 )
 
 if not os.path.exists(DB_PATH):
-    logger.warning(f"Vector DB not found at {DB_PATH}. Please run ingest_upgraded.py first.")
+    logger.warning(f"Vector DB not found at {DB_PATH}. Please run ingest.py first.")
     db = None
 else:
     db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
@@ -76,34 +72,43 @@ else:
 print(f"Loading Reranker {RERANKER_MODEL}...")
 reranker = CrossEncoder(RERANKER_MODEL, device=DEVICE)
 
-# Load NEW reasoning model
+# Load Ministral-3-8B-Reasoning Model
 print(f"Loading Reasoning Model {MODEL_ID}...")
+
 try:
+    # Ministral supports 4-bit quantization
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4"
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True  # Extra optimization
     )
     
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+    
+    # Important: Set pad_token if not set (Ministral sometimes needs this)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         quantization_config=quantization_config if DEVICE == "cuda" else None,
         torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
         device_map="auto" if DEVICE == "cuda" else None,
-        trust_remote_code=True  # Required for some models
+        trust_remote_code=True
     )
     
     if DEVICE == "cpu":
         logger.warning("Running on CPU! This will be slow.")
         model.to("cpu")
+    
+    print("Model loaded successfully!")
         
 except Exception as e:
     logger.error(f"Error loading {MODEL_ID}: {e}")
-    print("Please ensure you have model access and proper hardware.")
     raise e
 
-# --- HELPER FUNCTIONS ---
+# HELPER FUNCTIONS
 
 def validate_input(message):
     """Checks input length and validity."""
@@ -113,48 +118,54 @@ def validate_input(message):
         return f"Câu hỏi quá dài (>{MAX_INPUT_LEN} ký tự). Vui lòng rút gọn."
     return None
 
-def format_prompt_for_reasoning(message, history, context):
+def format_prompt_for_ministral(message, history, context):
     """
-    ✨ NEW: Enhanced prompt for reasoning models
-    DeepSeek-R1 and similar models benefit from explicit reasoning instructions
+    OPTIMIZED PROMPT for Ministral-3-8B-Reasoning
+    
+    Key changes from DeepSeek-R1 version:
+    1. Stricter language control (MUST respond in Vietnamese)
+    2. Simpler instructions (Ministral is smaller, less verbose)
+    3. Emphasize system prompt adherence (Ministral's strength)
     """
+    
+    # Ministral recommends concise system prompts
     system_prompt = (
-        "You are a medical information assistant with advanced reasoning capabilities. Follow these rules:\n\n"
-        "**REASONING APPROACH:**\n"
-        "1. Think step-by-step through the medical question\n"
-        "2. Identify key medical concepts and their relationships\n"
-        "3. Cross-reference information from multiple sources when available\n"
-        "4. Consider contraindications and safety concerns\n\n"
+        "You are a medical information assistant. You MUST follow these rules:\n\n"
         
-        "**RESPONSE FORMAT:**\n"
-        "1. **Language**: Always respond in Vietnamese, even if context is in English\n"
-        "2. **Citations**: MUST cite specific sources [Source X] for every medical claim\n"
-        "3. **Accuracy**: If sources conflict, present all viewpoints with citations\n"
-        "4. **Limitations**: If information is insufficient, clearly state 'Thông tin chưa đầy đủ'\n"
-        "5. **Safety**: Never provide specific diagnoses or treatment recommendations\n"
-        "6. **Structure**: Use clear sections if explaining complex topics\n\n"
+        "**CRITICAL - LANGUAGE RULE:**\n"
+        "- Your ENTIRE response MUST be in Vietnamese only\n"
+        "- Never mix English, French, or other languages in your answer\n"
+        "- Translate all medical terms to Vietnamese\n"
+        "- If you don't know the Vietnamese term, describe it in Vietnamese\n\n"
         
-        "**CRITICAL SAFETY RULES:**\n"
-        "- Always defer to healthcare professionals for diagnosis/treatment\n"
-        "- Highlight potential risks and contraindications\n"
-        "- Encourage consulting doctors for serious symptoms\n\n"
+        "**RESPONSE STRUCTURE:**\n"
+        "1. Answer the question directly in Vietnamese\n"
+        "2. Cite sources using [Source X] format for every claim\n"
+        "3. If sources conflict, present all viewpoints\n"
+        "4. If information is insufficient, say 'Thông tin chưa đầy đủ'\n\n"
         
-        "Context provided includes numbered sources (e.g., [Source 1], [Source 2])."
+        "**SAFETY:**\n"
+        "- Never provide diagnosis or treatment recommendations\n"
+        "- Always encourage consulting healthcare professionals\n"
+        "- Mention risks and contraindications when relevant\n\n"
+        
+        "Context includes numbered sources: [Source 1], [Source 2], etc."
     )
     
     messages = [{"role": "system", "content": system_prompt}]
     
-    # Add history (Limited)
+    # Add history (limited)
     for human, ai in history[-MAX_HISTORY_LEN:]:
         messages.append({"role": "user", "content": human})
         if ai:
             messages.append({"role": "assistant", "content": ai})
     
     # Add current message with context
+    # Important: Remind the model again about Vietnamese
     content_with_context = (
-        f"**Medical Context from Documents:**\n{context}\n\n"
-        f"**Patient Question:**\n{message}\n\n"
-        f"Please provide a thorough, well-reasoned response in Vietnamese."
+        f"**Tài liệu y khoa (Medical Context):**\n{context}\n\n"
+        f"**Câu hỏi (Question):**\n{message}\n\n"
+        f"**QUAN TRỌNG:** Trả lời HOÀN TOÀN bằng tiếng Việt. Không lẫn lộn ngôn ngữ khác."
     )
     messages.append({"role": "user", "content": content_with_context})
     
@@ -162,7 +173,7 @@ def format_prompt_for_reasoning(message, history, context):
 
 def chat(message, history, progress=gr.Progress()):
     """
-    Main chat logic with reasoning model
+    Main chat logic with Ministral-3-8B-Reasoning
     """
     error_msg = validate_input(message)
     if error_msg:
@@ -170,19 +181,19 @@ def chat(message, history, progress=gr.Progress()):
         return
 
     if not retriever:
-        yield "Lỗi: Cơ sở dữ liệu chưa sẵn sàng. Vui lòng chạy ingest_upgraded.py."
+        yield "Lỗi: Cơ sở dữ liệu chưa sẵn sàng. Vui lòng chạy ingest.py trước."
         return
 
     try:
-        progress(0.1, desc="🔍 Đang tìm kiếm tài liệu với BGE-M3...")
+        progress(0.1, desc="Đang tìm kiếm tài liệu...")
         
-        # 1. Retrieve with better embeddings
+        # 1. Retrieve
         docs = retriever.invoke(message)
         if not docs:
             yield "Không tìm thấy tài liệu liên quan trong cơ sở dữ liệu."
             return
 
-        progress(0.4, desc="🎯 Đang rerank với Cross-Encoder...")
+        progress(0.4, desc="Đang đánh giá độ liên quan...")
         
         # 2. Rerank
         doc_texts = [doc.page_content for doc in docs]
@@ -204,10 +215,10 @@ def chat(message, history, progress=gr.Progress()):
             top_docs = [docs[i] for i in top_k_indices]
         
         if not top_docs:
-            yield "Xin lỗi, không tìm thấy thông tin đủ độ tin cậy (>30%) trong tài liệu."
+            yield "Xin lỗi, không tìm thấy thông tin đủ độ tin cậy (>30%) để trả lời."
             return
 
-        progress(0.6, desc="🧠 Đang reasoning với DeepSeek-R1...")
+        progress(0.6, desc="Đang suy luận với Ministral...")
 
         # 3. Context Construction
         context_pieces = []
@@ -225,17 +236,17 @@ def chat(message, history, progress=gr.Progress()):
             
             context_pieces.append(
                 f"[Source {i+1}]: {doc.page_content}\n"
-                f"(Reference: {filename}, Page {page_display})"
+                f"(Tài liệu: {filename}, Trang {page_display})"
             )
-            sources_list.append(f"- [Source {i+1}]: {filename} (Page {page_display})")
+            sources_list.append(f"- [Source {i+1}]: {filename} (Trang {page_display})")
             
         context = "\n\n".join(context_pieces)
         
-        # 4. Generate with Reasoning Model
-        messages = format_prompt_for_reasoning(message, history, context)
+        # 4. Generate with Ministral
+        messages = format_prompt_for_ministral(message, history, context)
         
-        # Handle different tokenizer formats
-        if hasattr(tokenizer, 'apply_chat_template'):
+        # Tokenize with Ministral's chat template
+        try:
             inputs = tokenizer.apply_chat_template(
                 messages,
                 add_generation_prompt=True,
@@ -243,9 +254,13 @@ def chat(message, history, progress=gr.Progress()):
                 return_dict=True,
                 return_tensors="pt",
             ).to(model.device)
-        else:
-            # Fallback for models without chat template
-            prompt_text = "\n\n".join([f"{m['role']}: {m['content']}" for m in messages])
+        except Exception as e:
+            # Fallback if chat template fails
+            logger.warning(f"Chat template failed: {e}. Using manual formatting.")
+            prompt_text = "\n\n".join([
+                f"{'System' if m['role']=='system' else m['role'].capitalize()}: {m['content']}" 
+                for m in messages
+            ]) + "\n\nAssistant:"
             inputs = tokenizer(prompt_text, return_tensors="pt").to(model.device)
         
         streamer = TextIteratorStreamer(
@@ -261,7 +276,8 @@ def chat(message, history, progress=gr.Progress()):
             max_new_tokens=MAX_NEW_TOKENS,
             do_sample=True,
             temperature=TEMPERATURE,
-            top_p=0.9,  # Add nucleus sampling for better quality
+            top_p=0.9,
+            repetition_penalty=1.1,  # Prevent repetition
         )
         
         t = Thread(target=model.generate, kwargs=generate_kwargs)
@@ -290,10 +306,10 @@ def chat(message, history, progress=gr.Progress()):
 # --- UI SETUP ---
 with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant", fill_height=True) as demo:
     gr.Markdown(
-        f"# 🏥 Medical RAG Assistant (Upgraded)\n"
-        f"**🧠 Reasoning Model:** {MODEL_ID.split('/')[-1]}\n"
-        f"**🔍 Embedding:** {EMBEDDING_MODEL.split('/')[-1]}\n"
-        f"**⚡ Pipeline:** Retrieve({TOP_K_RETRIEVAL}) → Rerank({TOP_K_RERANK}) → Reason"
+        f"# Medical RAG Assistant\n"
+        f"**Model:** Ministral-3-8B-Reasoning (Multilingual + Reasoning)\n"
+        f"**Embedding:** BGE-M3 (1024-dim, 8K context)\n"
+        f"**Pipeline:** Retrieve({TOP_K_RETRIEVAL}) → Rerank({TOP_K_RERANK}) → Reason → Respond in Vietnamese"
     )
     
     with gr.Accordion("⚠️ ĐỌC KỸ: CẢNH BÁO Y TẾ", open=False):
@@ -301,21 +317,33 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant", fill_heigh
     
     gr.ChatInterface(
         fn=chat,
-        description="Hệ thống tra cứu thông tin y tế với khả năng reasoning nâng cao.",
+        description="Hệ thống tra cứu y khoa với khả năng suy luận và trả lời HOÀN TOÀN bằng tiếng Việt.",
         examples=[
-            "Triệu chứng của bệnh tiểu đường type 2 là gì? Giải thích cơ chế sinh lý.",
-            "So sánh phương pháp điều trị bệnh tim mạch: thuốc vs can thiệp phẫu thuật?",
-            "Aspirin có tác dụng gì? Có tác dụng phụ nào cần lưu ý?",
-            "Biến chứng của phẫu thuật thay khớp háng là gì? Tỷ lệ bao nhiêu phần trăm?"
+            "Triệu chứng của bệnh tiểu đường type 2 là gì?",
+            "So sánh metformin và insulin cho điều trị tiểu đường?",
+            "Tác dụng phụ của aspirin là gì?",
+            "Biến chứng của phẫu thuật thay khớp háng?",
+            "Cách phòng ngừa bệnh tim mạch ở người trên 50 tuổi?"
         ],
         fill_height=True,
     )
     
-    gr.Markdown(
-        "---\n"
-        "**💡 Tips:** Hệ thống sử dụng reasoning model - có thể mất thời gian suy nghĩ (~5-15s) "
-        "nhưng câu trả lời sẽ có logic và trích dẫn rõ ràng hơn."
-    )
+    with gr.Accordion("💡 Tips sử dụng", open=False):
+        gr.Markdown("""
+### Cách hỏi hiệu quả:
+- **Tốt:** "Triệu chứng của bệnh tiểu đường type 2 là gì? Giải thích nguyên nhân."
+- **Kém:** "tiểu đường" (quá ngắn, không rõ ràng)
+
+### Hệ thống này:
+- Trả lời hoàn toàn bằng tiếng Việt (đã fix lỗi lẫn lộn ngôn ngữ)
+- Cung cấp trích dẫn rõ ràng từ tài liệu
+- Có khả năng suy luận logic cho câu hỏi phức tạp
+- KHÔNG thay thế bác sĩ - chỉ để tham khảo thông tin
+
+### Thời gian xử lý:
+- Câu hỏi đơn giản: ~5-8 giây
+- Câu hỏi phức tạp: ~10-15 giây (model đang "suy nghĩ")
+        """)
 
 if __name__ == "__main__":
     demo.queue().launch(
@@ -324,4 +352,3 @@ if __name__ == "__main__":
         auth=DEFAULT_AUTH,
         root_path=None
     )
-    
