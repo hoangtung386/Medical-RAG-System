@@ -14,3 +14,6 @@ scipy
 tiktoken
 einops
 langchain-text-splitters
+langchain-chroma
+langchain-community
+langchain-huggingface
