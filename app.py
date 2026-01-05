@@ -1,49 +1,69 @@
 import os
 import gradio as gr
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer, BitsAndBytesConfig
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from sentence_transformers import CrossEncoder
 from threading import Thread
 import numpy as np
 import logging
-from transformers import BitsAndBytesConfig
 
-# Logging Setup
+# --- LOGGER SETUP ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Constants
+# --- CONFIGURATION (CONSTANTS) ---
+MODEL_ID = "unsloth/gpt-oss-20b"
+RERANKER_MODEL = "cross-encoder/mmarco-mMiniLM-v2-L12-H384-v1"
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+DB_PATH = os.path.join(os.getcwd(), "chroma_db")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Tweakable Parameters
+RELEVANCE_THRESHOLD = 0.3
+MAX_HISTORY_LEN = 10  # Limit chat history
+MAX_INPUT_LEN = 2000
+MIN_INPUT_LEN = 5
+TOP_K_RETRIEVAL = 10
+TOP_K_RERANK = 8
+TEMPERATURE = 0.7
+MAX_NEW_TOKENS = 512
+
+# Security
+DEFAULT_AUTH = ("admin", "123456") # Change this!
+
 MEDICAL_DISCLAIMER = """
-### ⚠️ CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
+### CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
 1. **Mục đích tham khảo**: Công cụ này chỉ cung cấp thông tin y tế tổng quát để tham khảo, được trích xuất từ tài liệu có sẵn.
 2. **Không thay thế bác sĩ**: Thông tin **KHÔNG** có giá trị chẩn đoán, điều trị hay tư vấn y khoa chính thức.
 3. **Miễn trừ trách nhiệm**: Người dùng tự chịu trách nhiệm khi sử dụng thông tin. Luôn tham khảo ý kiến bác sĩ hoặc chuyên gia y tế cho các vấn đề sức khỏe cụ thể.
 """
-RELEVANCE_THRESHOLD = 0.3
-
-# Configuration
-MODEL_ID = "unsloth/gpt-oss-20b"
-DB_PATH = os.path.join(os.getcwd(), "chroma_db")
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Device: {DEVICE}")
 
+# --- INITIALIZATION ---
+
 # Load Retriever
 print("Loading Vector Database...")
-# Must match the model used in ingest.py
-embedding_function = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", model_kwargs={'device': 'cpu'})
-db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
-# Retrieve more candidates first, then rerank
-retriever = db.as_retriever(search_kwargs={"k": 10})
+embedding_function = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL, model_kwargs={'device': 'cpu'})
+if not os.path.exists(DB_PATH):
+    logger.warning(f"Vector DB not found at {DB_PATH}. Please run ingest.py first.")
+    db = None
+else:
+    db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
+
+if db:
+    retriever = db.as_retriever(search_kwargs={"k": TOP_K_RETRIEVAL})
+else:
+    retriever = None
 
 # Load Reranker
-RERANKER_MODEL = "cross-encoder/mmarco-mMiniLM-v2-L12-H384-v1"
 print(f"Loading Reranker {RERANKER_MODEL}...")
-reranker = CrossEncoder(RERANKER_MODEL, device="cpu") # Reranker is usually small enough for CPU or put on GPU if available
+# Use GPU for Reranker if available for speed
+reranker = CrossEncoder(RERANKER_MODEL, device=DEVICE) 
 
-# Load Model with 4-bit Quantization
+# Load Model
 print(f"Loading Model {MODEL_ID}...")
 try:
     quantization_config = BitsAndBytesConfig(
@@ -60,13 +80,27 @@ try:
         device_map="auto" if DEVICE == "cuda" else None
     )
     if DEVICE == "cpu":
+        logger.warning("Running on CPU! This will be extremely slow for a 20B model.")
         model.to("cpu")
 except Exception as e:
     logger.error(f"Error loading {MODEL_ID}: {e}")
     print("Please ensure you have the model access and hardware requirements.")
     raise e
 
+# --- HELPER FUNCTIONS ---
+
+def validate_input(message):
+    """Checks input length and validity."""
+    if not message or len(message.strip()) < MIN_INPUT_LEN:
+        return "Câu hỏi quá ngắn. Vui lòng nhập chi tiết hơn."
+    if len(message) > MAX_INPUT_LEN:
+        return f"Câu hỏi quá dài (>{MAX_INPUT_LEN} ký tự). Vui lòng rút gọn."
+    return None
+
 def format_prompt(message, history, context):
+    """
+    Constructs the prompt for the LLM properly formatting history and context.
+    """
     system_prompt = (
         "You are a medical information assistant. Follow these rules strictly:\n"
         "1. **Language**: Always respond in Vietnamese, even if context is in English.\n"
@@ -78,16 +112,13 @@ def format_prompt(message, history, context):
         "Context provided includes strictly numbered sources (e.g., [Source 1], [Source 2])."
     )
     
-    # Construct conversation history
-    # Note: GPT-OSS-20B might expect a specific chat template.
-    # Using a generic flexible format or the tokenizer's chat template if available.
-    
     messages = [{"role": "system", "content": system_prompt}]
     
-    # Add history
-    for human, ai in history:
+    # Add history (Limited)
+    for human, ai in history[-MAX_HISTORY_LEN:]:
         messages.append({"role": "user", "content": human})
-        messages.append({"role": "assistant", "content": ai})
+        if ai:
+            messages.append({"role": "assistant", "content": ai})
     
     # Add current message with context
     content_with_context = f"Context:\n{context}\n\nQuestion: {message}"
@@ -95,12 +126,31 @@ def format_prompt(message, history, context):
     
     return messages
 
-def chat(message, history):
+def chat(message, history, progress=gr.Progress()):
+    """
+    Main chat logic: Validation -> Retrieval -> Reranking -> Generation -> Streaming.
+    """
+    error_msg = validate_input(message)
+    if error_msg:
+        yield error_msg
+        return
+
+    if not retriever:
+        yield "Lỗi: Cơ sở dữ liệu chưa sẵn sàng. Vui lòng chạy ingest.py."
+        return
+
     try:
-        # Retrieve context (fetch top 10)
-        docs = retriever.invoke(message)
+        progress(0.1, desc="Đang tìm kiếm tài liệu...")
         
-        # Reranking Logic
+        # 1. Retrieve
+        docs = retriever.invoke(message)
+        if not docs:
+            yield "Không tìm thấy tài liệu liên quan trong cơ sở dữ liệu."
+            return
+
+        progress(0.4, desc="Đang đánh giá độ liên quan...")
+        
+        # 2. Rerank
         doc_texts = [doc.page_content for doc in docs]
         top_docs = []
         
@@ -108,15 +158,14 @@ def chat(message, history):
             pairs = [[message, doc_text] for doc_text in doc_texts]
             scores = reranker.predict(pairs)
             
-            # Sort by score descending
+            # Sort & Filter
             sorted_indices = np.argsort(scores)[::-1]
             
-            # Filter by Threshold and Take top 8
             top_k_indices = []
             for i in sorted_indices:
                 if scores[i] > RELEVANCE_THRESHOLD:
                     top_k_indices.append(i)
-                if len(top_k_indices) >= 8:
+                if len(top_k_indices) >= TOP_K_RERANK:
                     break
             
             top_docs = [docs[i] for i in top_k_indices]
@@ -125,26 +174,33 @@ def chat(message, history):
             yield "Xin lỗi, tôi không tìm thấy thông tin đủ độ tin cậy trong tài liệu để trả lời câu hỏi của bạn."
             return
 
-            # Format context with metadata
+        progress(0.6, desc="Đang tổng hợp câu trả lời...")
+
+        # 3. Context Construction with Metadata Fix
         context_pieces = []
         sources_list = []
         
         for i, doc in enumerate(top_docs):
-            # Extract metadata
+            # Extract metadata safely (Audit Fix #1)
             source_path = doc.metadata.get('source', 'Unknown File')
             filename = os.path.basename(source_path)
-            page = doc.metadata.get('page', 'Unknown Page') + 1 # Page is usually 0-indexed
+            
+            # Safe page number logic
+            raw_page = doc.metadata.get('page', -1)
+            if isinstance(raw_page, int) and raw_page >= 0:
+                page_display = raw_page + 1
+            else:
+                page_display = "Unknown"
             
             # Create context string
-            context_pieces.append(f"[Source {i+1}]: {doc.page_content}\n(Reference: {filename}, Page {page})")
-            sources_list.append(f"- [Source {i+1}]: {filename} (Page {page})")
+            context_pieces.append(f"[Source {i+1}]: {doc.page_content}\n(Reference: {filename}, Page {page_display})")
+            sources_list.append(f"- [Source {i+1}]: {filename} (Page {page_display})")
             
         context = "\n\n".join(context_pieces) if context_pieces else ""
         
-        # Format input
+        # 4. Generate
         messages = format_prompt(message, history, context)
         
-        # Apply template
         inputs = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
@@ -153,13 +209,13 @@ def chat(message, history):
             return_tensors="pt",
         ).to(model.device)
         
-        streamer = TextIteratorStreamer(tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
         generate_kwargs = dict(
             **inputs,
             streamer=streamer,
-            max_new_tokens=512,
+            max_new_tokens=MAX_NEW_TOKENS,
             do_sample=True,
-            temperature=0.7,
+            temperature=TEMPERATURE,
         )
         
         t = Thread(target=model.generate, kwargs=generate_kwargs)
@@ -170,35 +226,39 @@ def chat(message, history):
             partial_response += new_token
             yield partial_response
 
-        # Append sources at the end
+        # 5. Append Sources
         if sources_list:
             yield partial_response + "\n\n**Tài liệu tham khảo:**\n" + "\n".join(sources_list)
 
     except Exception as e:
-        logger.error(f"Error in chat: {e}")
-        yield "Đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng kiểm tra log để biết thêm chi tiết."
+        logger.error(f"Error in chat: {e}", exc_info=True)
+        yield f"Đã xảy ra lỗi hệ thống: {str(e)}"
 
-# Gradio Interface
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
+# --- UI SETUP ---
+with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant") as demo:
     gr.Markdown(MEDICAL_DISCLAIMER)
-    gr.Markdown("# Medical RAG Assistant (GPT-OSS-20B)")
+    gr.Markdown(f"# Medical RAG Assistant\nModel: {MODEL_ID} | Docs: {TOP_K_RETRIEVAL}->{TOP_K_RERANK}")
     
     with gr.Row():
         with gr.Column(scale=3):
-            chatbot = gr.Chatbot(height=600)
-            msg = gr.Textbox(label="Ask a question about the medical documents")
-            clear = gr.Button("Clear")
+            chatbot = gr.Chatbot(height=600, show_label=False)
+            msg = gr.Textbox(label="Nhập câu hỏi y tế của bạn...", placeholder="Ví dụ: Triệu chứng của bệnh tiểu đường là gì?")
+            with gr.Row():
+                submit_btn = gr.Button("Gửi câu hỏi", variant="primary")
+                clear_btn = gr.Button("Xóa")
         with gr.Column(scale=1):
-            gr.Markdown("### Ví dụ câu hỏi:")
+            gr.Markdown("### Gợi ý câu hỏi")
             gr.Examples(
                 examples=[
                     "Triệu chứng của bệnh tiểu đường type 2 là gì?",
                     "Cách phòng ngừa bệnh tim mạch?",
-                    "Tác dụng phụ của aspirin?"
+                    "Tác dụng phụ của aspirin?",
+                    "Biến chứng của phẫu thuật thay khớp háng?"
                 ],
                 inputs=msg
             )
 
+    # Event Handlers
     def user(user_message, history):
         return "", history + [[user_message, None]]
 
@@ -213,7 +273,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
         bot, chatbot, chatbot
     )
-    clear.click(lambda: None, None, chatbot, queue=False)
+    submit_btn.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+        bot, chatbot, chatbot
+    )
+    clear_btn.click(lambda: None, None, chatbot, queue=False)
 
 if __name__ == "__main__":
-    demo.queue().launch(share=True, server_name="0.0.0.0")
+    # Audit Security Fix: Added Auth and server_name default
+    demo.queue().launch(
+        share=True, 
+        server_name="0.0.0.0", 
+        auth=DEFAULT_AUTH,
+        root_path=None 
+    )
