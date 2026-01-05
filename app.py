@@ -7,6 +7,21 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from sentence_transformers import CrossEncoder
 from threading import Thread
 import numpy as np
+import logging
+from transformers import BitsAndBytesConfig
+
+# Logging Setup
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Constants
+MEDICAL_DISCLAIMER = """
+### ⚠️ CẢNH BÁO Y TẾ QUAN TRỌNG / IMPORTANT MEDICAL DISCLAIMER
+1. **Mục đích tham khảo**: Công cụ này chỉ cung cấp thông tin y tế tổng quát để tham khảo, được trích xuất từ tài liệu có sẵn.
+2. **Không thay thế bác sĩ**: Thông tin **KHÔNG** có giá trị chẩn đoán, điều trị hay tư vấn y khoa chính thức.
+3. **Miễn trừ trách nhiệm**: Người dùng tự chịu trách nhiệm khi sử dụng thông tin. Luôn tham khảo ý kiến bác sĩ hoặc chuyên gia y tế cho các vấn đề sức khỏe cụ thể.
+"""
+RELEVANCE_THRESHOLD = 0.3
 
 # Configuration
 MODEL_ID = "unsloth/gpt-oss-20b"
@@ -28,29 +43,39 @@ RERANKER_MODEL = "cross-encoder/mmarco-mMiniLM-v2-L12-H384-v1"
 print(f"Loading Reranker {RERANKER_MODEL}...")
 reranker = CrossEncoder(RERANKER_MODEL, device="cpu") # Reranker is usually small enough for CPU or put on GPU if available
 
-# Load Model
+# Load Model with 4-bit Quantization
 print(f"Loading Model {MODEL_ID}...")
 try:
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_quant_type="nf4"
+    )
+    
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
+        quantization_config=quantization_config if DEVICE == "cuda" else None,
         torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
         device_map="auto" if DEVICE == "cuda" else None
     )
     if DEVICE == "cpu":
         model.to("cpu")
 except Exception as e:
-    print(f"Error loading {MODEL_ID}: {e}")
+    logger.error(f"Error loading {MODEL_ID}: {e}")
     print("Please ensure you have the model access and hardware requirements.")
     raise e
 
 def format_prompt(message, history, context):
     system_prompt = (
-        "You are a helpful medical assistant. The user will ask questions in Vietnamese. "
-        "The context provided includes strictly numbered sources (e.g., [Source 1], [Source 2]). "
-        "You must answer strictly in Vietnamese. "
-        "CRITICAL: When answering, you MUST cite the specific source ID that supports your statement (e.g., 'Theo nguồn [1]...'). "
-        "If you don't know the answer based on the context, say you don't know in Vietnamese."
+        "You are a medical information assistant. Follow these rules strictly:\n"
+        "1. **Language**: Always respond in Vietnamese, even if context is in English.\n"
+        "2. **Citations**: MUST cite specific sources [Source X] for every claim.\n"
+        "3. **Accuracy**: If sources conflict, mention all viewpoints.\n"
+        "4. **Limitations**: If information is insufficient, clearly state 'Thông tin chưa đầy đủ để trả lời chính xác'.\n"
+        "5. **Scope**: Only answer medical/health questions based on provided context.\n"
+        "6. **Safety**: Never provide specific diagnoses or treatment recommendations - always defer to healthcare professionals.\n\n"
+        "Context provided includes strictly numbered sources (e.g., [Source 1], [Source 2])."
     )
     
     # Construct conversation history
@@ -71,80 +96,108 @@ def format_prompt(message, history, context):
     return messages
 
 def chat(message, history):
-    # Retrieve context (fetch top 10)
-    docs = retriever.invoke(message)
-    
-    # Reranking Logic
-    doc_texts = [doc.page_content for doc in docs]
-    top_docs = []
-    
-    if doc_texts:
-        pairs = [[message, doc_text] for doc_text in doc_texts]
-        scores = reranker.predict(pairs)
+    try:
+        # Retrieve context (fetch top 10)
+        docs = retriever.invoke(message)
         
-        # Sort by score descending
-        sorted_indices = np.argsort(scores)[::-1]
+        # Reranking Logic
+        doc_texts = [doc.page_content for doc in docs]
+        top_docs = []
         
-        # Take top 8 after reranking
-        top_k_indices = sorted_indices[:8]
-        top_docs = [docs[i] for i in top_k_indices]
-    
-    # Format context with metadata
-    context_pieces = []
-    sources_list = []
-    
-    for i, doc in enumerate(top_docs):
-        # Extract metadata
-        source_path = doc.metadata.get('source', 'Unknown File')
-        filename = os.path.basename(source_path)
-        page = doc.metadata.get('page', 'Unknown Page') + 1 # Page is usually 0-indexed
+        if doc_texts:
+            pairs = [[message, doc_text] for doc_text in doc_texts]
+            scores = reranker.predict(pairs)
+            
+            # Sort by score descending
+            sorted_indices = np.argsort(scores)[::-1]
+            
+            # Filter by Threshold and Take top 8
+            top_k_indices = []
+            for i in sorted_indices:
+                if scores[i] > RELEVANCE_THRESHOLD:
+                    top_k_indices.append(i)
+                if len(top_k_indices) >= 8:
+                    break
+            
+            top_docs = [docs[i] for i in top_k_indices]
         
-        # Create context string
-        context_pieces.append(f"[Source {i+1}]: {doc.page_content}\n(Reference: {filename}, Page {page})")
-        sources_list.append(f"- [Source {i+1}]: {filename} (Page {page})")
-        
-    context = "\n\n".join(context_pieces) if context_pieces else ""
-    
-    # Format input
-    messages = format_prompt(message, history, context)
-    
-    # Apply template
-    inputs = tokenizer.apply_chat_template(
-        messages,
-        add_generation_prompt=True,
-        tokenize=True,
-        return_dict=True,
-        return_tensors="pt",
-    ).to(model.device)
-    
-    streamer = TextIteratorStreamer(tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
-    generate_kwargs = dict(
-        **inputs,
-        streamer=streamer,
-        max_new_tokens=512,
-        do_sample=True,
-        temperature=0.7,
-    )
-    
-    t = Thread(target=model.generate, kwargs=generate_kwargs)
-    t.start()
-    
-    partial_response = ""
-    for new_token in streamer:
-        partial_response += new_token
-        yield partial_response
+        if not top_docs:
+            yield "Xin lỗi, tôi không tìm thấy thông tin đủ độ tin cậy trong tài liệu để trả lời câu hỏi của bạn."
+            return
 
-    # Append sources at the end
-    if sources_list:
-        yield partial_response + "\n\n**Tài liệu tham khảo:**\n" + "\n".join(sources_list)
+            # Format context with metadata
+        context_pieces = []
+        sources_list = []
+        
+        for i, doc in enumerate(top_docs):
+            # Extract metadata
+            source_path = doc.metadata.get('source', 'Unknown File')
+            filename = os.path.basename(source_path)
+            page = doc.metadata.get('page', 'Unknown Page') + 1 # Page is usually 0-indexed
+            
+            # Create context string
+            context_pieces.append(f"[Source {i+1}]: {doc.page_content}\n(Reference: {filename}, Page {page})")
+            sources_list.append(f"- [Source {i+1}]: {filename} (Page {page})")
+            
+        context = "\n\n".join(context_pieces) if context_pieces else ""
+        
+        # Format input
+        messages = format_prompt(message, history, context)
+        
+        # Apply template
+        inputs = tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(model.device)
+        
+        streamer = TextIteratorStreamer(tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
+        generate_kwargs = dict(
+            **inputs,
+            streamer=streamer,
+            max_new_tokens=512,
+            do_sample=True,
+            temperature=0.7,
+        )
+        
+        t = Thread(target=model.generate, kwargs=generate_kwargs)
+        t.start()
+        
+        partial_response = ""
+        for new_token in streamer:
+            partial_response += new_token
+            yield partial_response
+
+        # Append sources at the end
+        if sources_list:
+            yield partial_response + "\n\n**Tài liệu tham khảo:**\n" + "\n".join(sources_list)
+
+    except Exception as e:
+        logger.error(f"Error in chat: {e}")
+        yield "Đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng kiểm tra log để biết thêm chi tiết."
 
 # Gradio Interface
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(MEDICAL_DISCLAIMER)
     gr.Markdown("# Medical RAG Assistant (GPT-OSS-20B)")
     
-    chatbot = gr.Chatbot(height=600)
-    msg = gr.Textbox(label="Ask a question about the medical documents")
-    clear = gr.Button("Clear")
+    with gr.Row():
+        with gr.Column(scale=3):
+            chatbot = gr.Chatbot(height=600)
+            msg = gr.Textbox(label="Ask a question about the medical documents")
+            clear = gr.Button("Clear")
+        with gr.Column(scale=1):
+            gr.Markdown("### Ví dụ câu hỏi:")
+            gr.Examples(
+                examples=[
+                    "Triệu chứng của bệnh tiểu đường type 2 là gì?",
+                    "Cách phòng ngừa bệnh tim mạch?",
+                    "Tác dụng phụ của aspirin?"
+                ],
+                inputs=msg
+            )
 
     def user(user_message, history):
         return "", history + [[user_message, None]]
