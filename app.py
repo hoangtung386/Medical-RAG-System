@@ -226,28 +226,38 @@ def chat(message, history, progress=gr.Progress()):
             partial_response += new_token
             yield partial_response
 
-        # 5. Append Sources
-        if sources_list:
-            yield partial_response + "\n\n**Tài liệu tham khảo:**\n" + "\n".join(sources_list)
+        # 5. Append Sources (Prevent Duplication)
+        if sources_list and "Tài liệu tham khảo" not in partial_response:
+             final_response = partial_response + "\n\n**Tài liệu tham khảo:**\n" + "\n".join(sources_list)
+             yield final_response
+        elif sources_list:
+             # Case where model might have generated it (rare but possible), just yield partial
+             yield partial_response
 
     except Exception as e:
         logger.error(f"Error in chat: {e}", exc_info=True)
         yield f"Đã xảy ra lỗi hệ thống: {str(e)}"
 
 # --- UI SETUP ---
-# Switch to ChatInterface for maximum stability
-demo = gr.ChatInterface(
-    fn=chat,
-    title="Medical RAG Assistant",
-    description=f"{MEDICAL_DISCLAIMER}\n\n**Model:** {MODEL_ID} | **Docs:** {TOP_K_RETRIEVAL}->{TOP_K_RERANK}",
-    examples=[
-        "Triệu chứng của bệnh tiểu đường type 2 là gì?",
-        "Cách phòng ngừa bệnh tim mạch?",
-        "Tác dụng phụ của aspirin?",
-        "Biến chứng của phẫu thuật thay khớp háng?"
-    ],
-    theme=gr.themes.Soft()
-)
+with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG Assistant", fill_height=True) as demo:
+    # Header & Disclaimer
+    gr.Markdown(f"# Medical RAG Assistant\n**Model:** {MODEL_ID} | **Docs:** {TOP_K_RETRIEVAL}->{TOP_K_RERANK}")
+    
+    with gr.Accordion("⚠️ ĐỌC KỸ: CẢNH BÁO Y TẾ / IMPORTANT MEDICAL DISCLAIMER", open=False):
+        gr.Markdown(MEDICAL_DISCLAIMER)
+    
+    # Chat Interface
+    gr.ChatInterface(
+        fn=chat,
+        description="Hệ thống tra cứu thông tin y tế từ tài liệu kiểm chứng.",
+        examples=[
+            "Triệu chứng của bệnh tiểu đường type 2 là gì?",
+            "Cách phòng ngừa bệnh tim mạch?",
+            "Tác dụng phụ của aspirin?",
+            "Biến chứng của phẫu thuật thay khớp háng?"
+        ],
+        fill_height=True,
+    )
 
 if __name__ == "__main__":
     demo.queue().launch(
