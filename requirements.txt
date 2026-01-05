@@ -13,4 +13,3 @@ protobuf
 scipy
 tiktoken
 einops
-bitsandbytes
