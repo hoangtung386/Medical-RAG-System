@@ -1,6 +1,6 @@
 # Hệ Thống RAG Y Tế (Medical RAG System)
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chạy offline, giúp tra cứu thông tin từ các tài liệu y khoa (PDF) và trả lời câu hỏi bằng tiếng Việt sử dụng mô hình ngôn ngữ lớn **GPT-OSS-20B**.
+Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chạy offline, giúp tra cứu thông tin từ các tài liệu y khoa (PDF) và trả lời câu hỏi bằng tiếng Việt sử dụng mô hình ngôn ngữ lớn **Llama-3.1-8B**.
 
 ## Tính Năng
 - **Tra cứu thông minh**: Tìm kiếm thông tin liên quan từ kho dữ liệu PDF tiếng Anh.
@@ -54,5 +54,5 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
 - `requirements.txt`: Danh sách các thư viện cần thiết.
 
 ## Lưu Ý
-- Mô hình **GPT-OSS-20B** khá nặng. Lần đầu chạy sẽ mất thời gian tải model.
+- Mô hình **Llama-3.1-8B** khá nặng. Lần đầu chạy sẽ mất thời gian tải model.
 - Để tối ưu hóa tốc độ và bộ nhớ, dự án sử dụng thư viện `unsloth` và `bitsandbytes` (nếu có GPU).
