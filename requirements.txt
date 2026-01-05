@@ -13,3 +13,4 @@ protobuf
 scipy
 tiktoken
 einops
+langchain-text-splitters
