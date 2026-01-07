@@ -130,8 +130,11 @@ def translate(text, tokenizer, model, max_length=1024):
             output_ids = model.generate(
                 input_ids,
                 max_length=max_length,
-                num_beams=4,
-                early_stopping=True
+                num_beams=5,  # Increased beams for better quality
+                early_stopping=True,
+                repetition_penalty=1.2, # Stronger penalty for loops
+                no_repeat_ngram_size=3, # Prevent phrase repetition
+                length_penalty=1.0 
             )
         return tokenizer.decode(output_ids[0], skip_special_tokens=True)
     except Exception as e:
