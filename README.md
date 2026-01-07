@@ -1,74 +1,71 @@
-# Hệ Thống RAG Y Tế (Medical RAG System) - Phiên Bản Ministral Reasoning
+# Hệ Thống RAG Y Tế (Medical RAG System) - Phiên Bản Translation Bridge
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, được tối ưu hóa đặc biệt cho **tiếng Việt** và khả năng **suy luận logic (Reasoning)**. Hệ thống tra cứu tài liệu y khoa (PDF) và trả lời câu hỏi chuyên sâu, chính xác.
+Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, sử dụng kiến trúc **Pipeline 5 Tầng** độc đáo để kết hợp khả năng suy luận y khoa chuẩn xác của mô hình quốc tế với trải nghiệm tiếng Việt mượt mà.
 
-## 🚀 Công Nghệ Cốt Lõi
+## 🚀 Kiến Trúc "Translation Bridge"
 
-Hệ thống sử dụng các mô hình tiên tiến nhất (SOTA) trong phân khúc Open Source:
+Để tối ưu hóa độ chính xác y khoa trên phần cứng giới hạn (**Tesla P100 16GB**), hệ thống sử dụng quy trình xử lý 5 bước:
 
-1.  **Reasoning Model (Tư Duy):** [**mistralai/Ministral-3-8B-Reasoning-2512**](https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512)
-    *   Mô hình ngôn ngữ thế hệ mới với khả năng suy luận mạnh mẽ.
-    *   **Tối ưu hóa đa ngôn ngữ**, đặc biệt là khả năng xử lý và trả lời tiếng Việt tự nhiên, chính xác hơn nhiều so với các phiên bản trước.
-    *   Tuân thủ nghiêm ngặt các hướng dẫn an toàn và cấu trúc trả lời.
+1.  **Input**: Câu hỏi tiếng Việt.
+2.  **Bridge 1 (Vi → En)**: Dịch câu hỏi sang tiếng Anh chuyên ngành y bằng **VinAI-Translate**.
+3.  **Retrieval**: Tìm kiếm tài liệu y khoa tiếng Anh (độ chính xác cao hơn tiếng Việt) bằng **BGE-M3**.
+4.  **Reasoning**: Suy luận và trả lời bằng **MedGemma-4B** (Mô hình chuyên y tế của Google).
+5.  **Bridge 2 (En → Vi)**: Dịch câu trả lời về tiếng Việt bằng **VinAI-Translate**.
 
-2.  **Embedding Model (Vector hóa):** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
-    *   Mô hình embedding đa ngôn ngữ tốt nhất hiện nay.
-    *   Hỗ trợ vector mật độ cao (Dense Retrieval) và thưa (Sparse Retrieval), tối ưu cho tìm kiếm y khoa.
+## 🧠 Các Mô Hình Cốt Lõi
 
-## ✨ Tính Năng Nổi Bật
+1.  **Medical Reasoning:** [**google/medgemma-4b-it**](https://huggingface.co/google/medgemma-4b-it)
+    *   Tối ưu hóa (Quantization 4-bit) để chạy mượt trên GPU 16GB.
+    *   Được huấn luyện chuyên sâu trên dữ liệu y khoa (Medical Papers, Guidelines).
 
--   **Vietnamese First:** Hệ thống được tinh chỉnh để **luôn trả lời bằng tiếng Việt**, loại bỏ hiện tượng pha trộn ngôn ngữ (Anh/Việt) thường gặp.
--   **Deep Reasoning:** Không chỉ tìm kiếm, mô hình còn phân tích, tổng hợp và suy luận từ nhiều nguồn thông tin để trả lời các câu hỏi phức tạp (Ví dụ: So sánh thuốc, phác đồ điều trị).
--   **Độ Chính Xác Cao**:
-    -   Quy trình 3 bước: **Tìm kiếm (Retrieve) -> Xếp hạng lại (Rerank) -> Suy luận (Reason)**.
-    -   Sử dụng Cross-Encoder để lọc bỏ thông tin nhiễu.
--   **Minh Bạch Nguồn Tin**: Mọi thông tin đưa ra đều đi kèm trích dẫn cụ thể `[Source X]` (Tên file, Số trang).
--   **Giao diện Thông Minh**: Gradio UI hiển thị trạng thái xử lý chi tiết và các mẹo đặt câu hỏi hiệu quả.
+2.  **Translation Bridge:** [**vinai/vinai-translate**](https://huggingface.co/vinai/vinai-translate-vi2en)
+    *   Mô hình dịch máy tốt nhất cho cặp câu Việt-Anh hiện nay.
+    *   Hiểu rõ thuật ngữ y khoa Việt Nam.
 
-## 🛠 Yêu Cầu Hệ Thống
+3.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
+    *   Giữ nguyên từ phiên bản trước do hiệu năng vượt trội.
 
--   **OS**: Windows / Linux
--   **Python**: 3.10+
--   **GPU**: NVIDIA GPU (Khuyến nghị **VRAM 12GB+** để chạy mượt mà Ministral-3-8B ở chế độ 4-bit + BGE-M3).
--   **RAM**: 16GB+
+## ✨ Điểm Mạnh & Lưu Ý
+
+### ✅ Điểm Mạnh
+*   **Độ Chính Xác Y Khoa**: Sử dụng nguồn tri thức y học chuẩn tiếng Anh và mô hình MedGemma chuyên dụng.
+*   **Tiếng Việt Tự Nhiên**: Không bị "lơ lớ" nhờ module dịch thuật chuyên biệt của VinAI.
+*   **Minh Bạch**: Trích dẫn nguồn tài liệu `[Source X]` rõ ràng.
+
+### ⚠️ Lưu Ý Quan Trọng
+*   **Độ Trễ (Latency)**: Do phải qua 2 bước dịch thuật và 1 bước suy luận, thời gian phản hồi sẽ khoảng **10-15 giây/câu**.
+*   **Cấu Hình**: Yêu cầu GPU tối thiểu **12GB VRAM** (Khuyến nghị 16GB P100/T4).
 
 ## 📦 Cài Đặt & Sử Dụng
 
-1.  **Cài đặt thư viện**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 1. Yêu Cầu
+*   Python 3.10+
+*   NVIDIA GPU (CUDA)
 
-2.  **Chuẩn bị dữ liệu (Ingest)**:
-    *   Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/`.
-    *   Chạy lệnh nạp dữ liệu (tạo vector DB):
-    ```bash
-    python ingest.py
-    ```
-    *(Chạy lại lệnh này mỗi khi có tài liệu mới)*
+### 2. Cài Đặt
+```bash
+pip install -r requirements.txt
+```
+*Lưu ý: Cần cài đặt `sentencepiece` và `sacremoses` (đã có trong requirements.txt).*
 
-3.  **Khởi chạy Chatbot**:
-    ```bash
-    python app.py
-    ```
-    *   Lần đầu chạy sẽ tải model (~5-6GB).
-    *   Truy cập Web UI tại: `http://localhost:7860`
+### 3. Nạp Dữ Liệu (Ingest)
+Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/` và chạy:
+```bash
+python ingest.py
+```
 
-## 🔑 Tài Khoản Truy Cập
-
-Hệ thống có bảo mật đăng nhập cơ bản:
--   **Username**: `admin`
--   **Password**: `123456`
-*(Thông tin này có thể đổi trong file `app.py`)*
+### 4. Khởi Chạy
+```bash
+python app.py
+```
+*   Lần đầu chạy sẽ tải khoảng **8-10GB** models.
+*   Truy cập Web UI tại: `http://localhost:7860`
 
 ## 📂 Cấu Trúc Dự Án
+*   `app.py`: Pipeline 5 bước (Translation -> Retrieval -> Reasoning).
+*   `ingest.py`: Xử lý và vector hóa tài liệu.
+*   `Medical_documents/`: Thư mục chứa PDF.
+*   `chroma_db/`: Cơ sở dữ liệu Vector.
 
--   `Medical_documents/`: Thư mục chứa tài liệu PDF đầu vào.
--   `chroma_db/`: Cơ sở dữ liệu vector (ChromaDB).
--   `ingest.py`: Script xử lý tài liệu (Sử dụng BGE-M3 + Smart Chunking 1500 tokens).
--   `app.py`: Ứng dụng chính (Gradio UI + Ministral Reasoning Logic).
-
-## ⚠️ Lưu Ý
-
--   **Thời gian phản hồi**: Với các câu hỏi phức tạp, mô hình cần **10-15 giây** để "suy nghĩ" và tổng hợp thông tin.
--   **Cảnh báo y tế**: Hệ thống là công cụ hỗ trợ tra cứu tham khảo. **KHÔNG** sử dụng thay thế bác sĩ trong chẩn đoán và điều trị thực tế.
+---
+**Cảnh báo y tế**: Hệ thống chỉ mang tính chất tham khảo thông tin, không thay thế chẩn đoán của bác sĩ.
