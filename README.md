@@ -14,24 +14,24 @@ Thay vì phải dịch qua lại (Vi-En-Vi), hệ thống sử dụng các mô h
 
 ## 🧠 Các Mô Hình Cốt Lõi
 
-1.  **Medical Logic & Reasoning (Chọn 1):**
-    *   [**unsloth/gemma-3-27b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-3-27b-it-bnb-4bit) (Khuyến nghị): Mô hình Google mới nhất, khả năng suy luận vượt trội.
-    *   [**unsloth/Qwen2.5-32B-Instruct-bnb-4bit**](https://huggingface.co/unsloth/Qwen2.5-32B-Instruct-bnb-4bit): Hỗ trợ tiếng Việt tốt nhất hiện nay.
+1.  **Medical Logic & Reasoning:**
+    *   [**unsloth/gemma-2-9b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-2-9b-it-bnb-4bit) (Hiện tại): Model cân bằng hoàn hảo giữa tốc độ và độ chính xác suy luận y khoa. Chạy mượt mà trên P100.
     *   *Tất cả đều được tối ưu hóa (4-bit Quantization) để chạy trên GPU 16GB.*
 
 2.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
     *   Giữ nguyên do hiệu năng vượt trội trong tìm kiếm đa ngôn ngữ.
 
-## ✨ Điểm Mạnh Mới
+## 🖥️ Giao Diện Hệ Thống
 
-### ✅ Tốc Độ Cao Hơn
-Loại bỏ 2 bước dịch thuật giúp giảm độ trễ từ 15s xuống còn **5-8 giây** (tùy độ dài câu trả lời).
+Dưới đây là hình ảnh thực tế của hệ thống:
 
-### ✅ Tiếng Việt Tự Nhiên
-Các mô hình thế hệ mới (Gemma 3, Qwen 2.5) "tư duy" trực tiếp bằng tiếng Việt, tránh được các lỗi dịch thuật ngớ ngẩn (như "vi khuẩn que" thay vì "trực khuẩn").
+**1. Màn hình Đăng nhập (Login)**
+Bảo mật cơ bản với tài khoản `admin` / `123456`.
+![Giao diện đăng nhập](/Images/Login_interface.png)
 
-### ✅ Less Point of Failure
-Hệ thống đơn giản hơn = Ít lỗi hơn. Không còn lo lắng về việc mô hình dịch bị lặp từ hay mất ngữ cảnh.
+**2. Giao diện Làm việc (Chat Interface)**
+Nơi bác sĩ đặt câu hỏi và nhận câu trả lời từ AI.
+![Giao diện làm việc](/Images/Working_interface.png)
 
 ## 📦 Cài Đặt & Sử Dụng
 
@@ -40,9 +40,9 @@ Hệ thống đơn giản hơn = Ít lỗi hơn. Không còn lo lắng về vi�
 *   NVIDIA GPU (CUDA) - VRAM **16GB** (Tesla P100/T4)
 
 ### ⚠️ Quan Trọng: Cấp Quyền Model
-Mô hình **Gemma 3** yêu cầu xin quyền truy cập. 
-1. Truy cập [Hugging Face Gemma 3](https://huggingface.co/google/gemma-3-27b-it).
-2. Nhấn "Request Access" và chấp nhận điều khoản.
+Mô hình **Gemma 2** yêu cầu xin quyền truy cập. 
+1. Truy cập [Hugging Face Gemma 2](https://huggingface.co/google/gemma-2-9b-it).
+2. Nhấn "Request Access".
 3. Đăng nhập terminal: `huggingface-cli login`
 
 ### 2. Cài Đặt
@@ -67,6 +67,7 @@ python app.py
 *   `ingest.py`: Xử lý và vector hóa tài liệu.
 *   `Medical_documents/`: Thư mục chứa PDF.
 *   `chroma_db/`: Cơ sở dữ liệu Vector.
+*   `Images/`: Thư mục chứa ảnh giao diện.
 
 ---
 **Cảnh báo y tế**: Hệ thống chỉ mang tính chất tham khảo thông tin, không thay thế chẩn đoán của bác sĩ.
