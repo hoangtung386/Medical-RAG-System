@@ -9,7 +9,7 @@ By leveraging state-of-the-art Large Language Models (LLMs) with strong native s
 **Simplified 3-Stage Workflow:**
 
 1.  **Retrieval**: Advanced semantic search using **BGE-M3** to locate relevant medical documents.
-2.  **Reasoning**: **Gemma 2 9B** (or Qwen 2.5) analyzes the retrieved context and performs medical reasoning directly in Vietnamese.
+2.  **Reasoning**: **Gpt-oss 20b bnb 4bit** analyzes the retrieved context and performs medical reasoning directly in Vietnamese.
 3.  **Response**: Generation of evidence-based answers with strict source citation.
 
 ## 🧠 Core Models
@@ -27,6 +27,8 @@ Below are screenshots of the running system:
 **1. Login Screen**
 Secure access via predefined credentials (`admin` / `123456`).
 ![Login Interface](/Images/Login_interface.png)
+
+
 
 **2. Workspace (Chat Interface)**
 The primary interface for medical professionals to query the knowledge base.
