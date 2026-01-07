@@ -1,58 +1,74 @@
-# Hệ Thống RAG Y Tế (Medical RAG System)
+# Hệ Thống RAG Y Tế (Medical RAG System) - Phiên Bản Ministral Reasoning
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chạy offline, giúp tra cứu thông tin từ các tài liệu y khoa (PDF) và trả lời câu hỏi bằng tiếng Việt sử dụng mô hình ngôn ngữ lớn **Llama-3.1-8B**.
+Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, được tối ưu hóa đặc biệt cho **tiếng Việt** và khả năng **suy luận logic (Reasoning)**. Hệ thống tra cứu tài liệu y khoa (PDF) và trả lời câu hỏi chuyên sâu, chính xác.
 
-## Tính Năng
-- **Tra cứu thông minh**: Tìm kiếm thông tin liên quan từ kho dữ liệu PDF tiếng Anh.
-- **Hỗ trợ Tiếng Việt**: Người dùng hỏi bằng tiếng Việt, hệ thống tìm kiếm trong tài liệu tiếng Anh và trả lời lại bằng tiếng Việt.
-- **Trích Dẫn Chính Xác**: Hiển thị nguồn tài liệu cụ thể (Source ID, Tên file, Trang) cho mỗi thông tin được đưa ra.
-- **An Toàn & Bảo Mật**:
-    - Tích hợp đăng nhập (Authentication) để bảo vệ truy cập.
-    - Kiểm soát đầu vào (Input Sanitization) để chống Spam/Attack.
-    - Tích hợp các quy tắc an toàn y tế (Medical Safety Guidelines).
-- **Reranking Tối Ưu**: Sử dụng Cross-Encoder để lọc kết quả, chỉ lấy thông tin có độ tin cậy >30% và xếp hạng lại Top 8.
-- **Tối Ưu Hiệu Năng**: Hỗ trợ 4-bit Quantization giúp chạy mượt mà trên GPU tầm trung.
-- **Offline**: Chạy hoàn toàn trên máy cá nhân, đảm bảo bảo mật dữ liệu.
-- **Giao diện thân thiện**: Gradio Chat Interface với thanh tiến trình (Progress Bar), Streaming và hỗ trợ chia sẻ từ xa (Remote Share).
+## 🚀 Công Nghệ Cốt Lõi
 
-## Yêu Cầu Hệ Thống
-- **Python 3.10+**
-- **GPU**: Khuyên dùng NVIDIA GPU (VRAM > 8GB) để chạy mô hình 8B parameters mượt mà (sử dụng 4-bit quantization).
+Hệ thống sử dụng các mô hình tiên tiến nhất (SOTA) trong phân khúc Open Source:
 
-## Cài Đặt
+1.  **Reasoning Model (Tư Duy):** [**mistralai/Ministral-3-8B-Reasoning-2512**](https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512)
+    *   Mô hình ngôn ngữ thế hệ mới với khả năng suy luận mạnh mẽ.
+    *   **Tối ưu hóa đa ngôn ngữ**, đặc biệt là khả năng xử lý và trả lời tiếng Việt tự nhiên, chính xác hơn nhiều so với các phiên bản trước.
+    *   Tuân thủ nghiêm ngặt các hướng dẫn an toàn và cấu trúc trả lời.
 
-1. **Cài đặt thư viện**:
-   Mở terminal tại thư mục dự án và chạy lệnh:
-   ```bash
-   pip install -r requirements.txt
-   ```
+2.  **Embedding Model (Vector hóa):** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
+    *   Mô hình embedding đa ngôn ngữ tốt nhất hiện nay.
+    *   Hỗ trợ vector mật độ cao (Dense Retrieval) và thưa (Sparse Retrieval), tối ưu cho tìm kiếm y khoa.
 
-2. **Nạp dữ liệu (Ingest)**:
-   Bước này sẽ đọc các file PDF trong thư mục `Medical_documents`, tạo vector embeddings và lưu vào `chroma_db`.
-   ```bash
-   python ingest.py
-   ```
-   *Lưu ý: Cần chạy lại lệnh này mỗi khi bạn thêm/sửa tài liệu mới.*
+## ✨ Tính Năng Nổi Bật
 
-3. **Chạy ứng dụng**:
-   Khởi động chatbot:
-   ```bash
-   python app.py
-   ```
-   Sau khi model load xong, truy cập đường dẫn hiện ra (thường là `http://127.0.0.1:7860`).
-   
-   **Thông tin đăng nhập mặc định**:
-   - Username: `admin`
-   - Password: `123456`
-   *(Bạn có thể đổi mật khẩu trong file `app.py`, dòng `DEFAULT_AUTH`)*
+-   **Vietnamese First:** Hệ thống được tinh chỉnh để **luôn trả lời bằng tiếng Việt**, loại bỏ hiện tượng pha trộn ngôn ngữ (Anh/Việt) thường gặp.
+-   **Deep Reasoning:** Không chỉ tìm kiếm, mô hình còn phân tích, tổng hợp và suy luận từ nhiều nguồn thông tin để trả lời các câu hỏi phức tạp (Ví dụ: So sánh thuốc, phác đồ điều trị).
+-   **Độ Chính Xác Cao**:
+    -   Quy trình 3 bước: **Tìm kiếm (Retrieve) -> Xếp hạng lại (Rerank) -> Suy luận (Reason)**.
+    -   Sử dụng Cross-Encoder để lọc bỏ thông tin nhiễu.
+-   **Minh Bạch Nguồn Tin**: Mọi thông tin đưa ra đều đi kèm trích dẫn cụ thể `[Source X]` (Tên file, Số trang).
+-   **Giao diện Thông Minh**: Gradio UI hiển thị trạng thái xử lý chi tiết và các mẹo đặt câu hỏi hiệu quả.
 
-## Cấu Trúc Thư Mục
-- `Medical_documents/`: Nơi chứa các file PDF tài liệu y khoa.
-- `chroma_db/`: Cơ sở dữ liệu vector lưu trữ thông tin đã xử lý.
-- `ingest.py`: Script xử lý và nạp dữ liệu.
-- `app.py`: Ứng dụng chính (Gradio UI + RAG logic).
-- `requirements.txt`: Danh sách các thư viện cần thiết.
+## 🛠 Yêu Cầu Hệ Thống
 
-## Lưu Ý
-- Mô hình **Llama-3.1-8B** khá nặng. Lần đầu chạy sẽ mất thời gian tải model.
-- Để tối ưu hóa tốc độ và bộ nhớ, dự án sử dụng thư viện `unsloth` và `bitsandbytes` (nếu có GPU).
+-   **OS**: Windows / Linux
+-   **Python**: 3.10+
+-   **GPU**: NVIDIA GPU (Khuyến nghị **VRAM 12GB+** để chạy mượt mà Ministral-3-8B ở chế độ 4-bit + BGE-M3).
+-   **RAM**: 16GB+
+
+## 📦 Cài Đặt & Sử Dụng
+
+1.  **Cài đặt thư viện**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Chuẩn bị dữ liệu (Ingest)**:
+    *   Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/`.
+    *   Chạy lệnh nạp dữ liệu (tạo vector DB):
+    ```bash
+    python ingest.py
+    ```
+    *(Chạy lại lệnh này mỗi khi có tài liệu mới)*
+
+3.  **Khởi chạy Chatbot**:
+    ```bash
+    python app.py
+    ```
+    *   Lần đầu chạy sẽ tải model (~5-6GB).
+    *   Truy cập Web UI tại: `http://localhost:7860`
+
+## 🔑 Tài Khoản Truy Cập
+
+Hệ thống có bảo mật đăng nhập cơ bản:
+-   **Username**: `admin`
+-   **Password**: `123456`
+*(Thông tin này có thể đổi trong file `app.py`)*
+
+## 📂 Cấu Trúc Dự Án
+
+-   `Medical_documents/`: Thư mục chứa tài liệu PDF đầu vào.
+-   `chroma_db/`: Cơ sở dữ liệu vector (ChromaDB).
+-   `ingest.py`: Script xử lý tài liệu (Sử dụng BGE-M3 + Smart Chunking 1500 tokens).
+-   `app.py`: Ứng dụng chính (Gradio UI + Ministral Reasoning Logic).
+
+## ⚠️ Lưu Ý
+
+-   **Thời gian phản hồi**: Với các câu hỏi phức tạp, mô hình cần **10-15 giây** để "suy nghĩ" và tổng hợp thông tin.
+-   **Cảnh báo y tế**: Hệ thống là công cụ hỗ trợ tra cứu tham khảo. **KHÔNG** sử dụng thay thế bác sĩ trong chẩn đoán và điều trị thực tế.
