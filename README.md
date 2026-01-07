@@ -1,73 +1,72 @@
-# Hệ Thống RAG Y Tế (Medical RAG System) - Single-Model Architecture
+# Medical RAG System (Single-Model Architecture)
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, sử dụng kiến trúc **Single-Model** tối giản nhưng mạnh mẽ, loại bỏ hoàn toàn module dịch thuật trung gian để tăng độ chính xác và tốc độ phản hồi.
+This project is a high-performance **Retrieval Augmented Generation (RAG)** application optimized for the medical domain. It utilizes a **Single-Model Architecture** to deliver precise, context-aware medical answers directly in Vietnamese, eliminating the need for intermediate translation layers and significantly reducing latency.
 
-## 🚀 Kiến Trúc Mới: "Direct Vietnamese Processing"
+## 🚀 New Architecture: "Direct Vietnamese Processing"
 
-Thay vì phải dịch qua lại (Vi-En-Vi), hệ thống sử dụng các mô hình ngôn ngữ lớn (LLM) thế hệ mới có khả năng hiểu và trả lời tiếng Việt tự nhiên cực tốt.
+By leveraging state-of-the-art Large Language Models (LLMs) with strong native support for Vietnamese, the system bypasses the traditional "translation bridge" approach (Vi -> En -> Vi). This results in a cleaner pipeline and more natural language generation.
 
-**Quy trình xử lý đơn giản hóa (3 Bước):**
+**Simplified 3-Stage Workflow:**
 
-1.  **Retrieval**: Tìm kiếm tài liệu y khoa liên quan từ cơ sở dữ liệu bằng **BGE-M3**.
-2.  **Reasoning**: Mô hình AI (Gemma 3 27B / Qwen 2.5 32B) phân tích tài liệu và suy luận trực tiếp bằng tiếng Việt.
-3.  **Response**: Trả về câu trả lời chuyên sâu kèm trích dẫn nguồn.
+1.  **Retrieval**: Advanced semantic search using **BGE-M3** to locate relevant medical documents.
+2.  **Reasoning**: **Gemma 2 9B** (or Qwen 2.5) analyzes the retrieved context and performs medical reasoning directly in Vietnamese.
+3.  **Response**: Generation of evidence-based answers with strict source citation.
 
-## 🧠 Các Mô Hình Cốt Lõi
+## 🧠 Core Models
 
 1.  **Medical Logic & Reasoning:**
-    *   [**unsloth/gemma-2-9b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-2-9b-it-bnb-4bit) (Hiện tại): Model cân bằng hoàn hảo giữa tốc độ và độ chính xác suy luận y khoa. Chạy mượt mà trên P100.
-    *   *Tất cả đều được tối ưu hóa (4-bit Quantization) để chạy trên GPU 16GB.*
+    *   [**unsloth/gemma-2-9b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-2-9b-it-bnb-4bit) (**Current**): The optimal balance between inference speed and reasoning capability. Optimized for 16GB VRAM GPUs (P100) using 4-bit quantization.
 
 2.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
-    *   Giữ nguyên do hiệu năng vượt trội trong tìm kiếm đa ngôn ngữ.
+    *   Retained for its State-of-the-Art multimedia and multilingual retrieval performance.
 
-## 🖥️ Giao Diện Hệ Thống
+## 🖥️ System Interface
 
-Dưới đây là hình ảnh thực tế của hệ thống:
+Below are screenshots of the running system:
 
-**1. Màn hình Đăng nhập (Login)**
-Bảo mật cơ bản với tài khoản `admin` / `123456`.
-![Giao diện đăng nhập](/Images/Login_interface.png)
+**1. Login Screen**
+Secure access via predefined credentials (`admin` / `123456`).
+![Login Interface](/Images/Login_interface.png)
 
-**2. Giao diện Làm việc (Chat Interface)**
-Nơi bác sĩ đặt câu hỏi và nhận câu trả lời từ AI.
-![Giao diện làm việc](/Images/Working_interface.png)
+**2. Workspace (Chat Interface)**
+The primary interface for medical professionals to query the knowledge base.
+![Workspace Interface](/Images/Working_interface.png)
 
-## 📦 Cài Đặt & Sử Dụng
+## 📦 Installation & Usage
 
-### 1. Yêu Cầu
-*   Python 3.10+
-*   NVIDIA GPU (CUDA) - VRAM **16GB** (Tesla P100/T4)
+### 1. Requirements
+*   **Python**: 3.10+
+*   **Hardware**: NVIDIA GPU with CUDA support (Minimum **16GB VRAM**, e.g., Tesla P100/T4).
 
-### ⚠️ Quan Trọng: Cấp Quyền Model
-Mô hình **Gemma 2** yêu cầu xin quyền truy cập. 
-1. Truy cập [Hugging Face Gemma 2](https://huggingface.co/google/gemma-2-9b-it).
-2. Nhấn "Request Access".
-3. Đăng nhập terminal: `huggingface-cli login`
+### ⚠️ Prerequisite: Model Access (Gated Model)
+The **Gemma 2** model requires access approval from Hugging Face.
+1. Visit [Hugging Face Gemma 2](https://huggingface.co/google/gemma-2-9b-it).
+2. Click "Request Access" and agree to the terms.
+3. Login via terminal: `huggingface-cli login` (enter your write token).
 
-### 2. Cài Đặt
+### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Nạp Dữ Liệu (Ingest)
-Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/` và chạy:
+### 3. Data Ingestion
+Place your medical PDF documents into the `Medical_documents/` directory and run:
 ```bash
 python ingest.py
 ```
 
-### 4. Khởi Chạy
+### 4. Launch Application
 ```bash
 python app.py
 ```
-*   Truy cập Web UI tại: `http://localhost:7860`
+*   Access the Web UI at: `http://localhost:7860`
 
-## 📂 Cấu Trúc Dự Án
-*   `app.py`: Logic chính (Single-Model Pipeline).
-*   `ingest.py`: Xử lý và vector hóa tài liệu.
-*   `Medical_documents/`: Thư mục chứa PDF.
-*   `chroma_db/`: Cơ sở dữ liệu Vector.
-*   `Images/`: Thư mục chứa ảnh giao diện.
+## 📂 Project Structure
+*   `app.py`: Main application logic (Single-Model RAG Pipeline).
+*   `ingest.py`: Document processing and vector ingestion script.
+*   `Medical_documents/`: Directory for input PDF files.
+*   `chroma_db/`: Vector database storage (ChromaDB).
+*   `Images/`: Interface screenshots.
 
 ---
-**Cảnh báo y tế**: Hệ thống chỉ mang tính chất tham khảo thông tin, không thay thế chẩn đoán của bác sĩ.
+**Medical Disclaimer**: This AI system is for informational and reference purposes only. It is not intended to replace professional medical diagnosis, advice, or treatment. Always consult with a qualified healthcare provider.
