@@ -1,62 +1,54 @@
-# Hệ Thống RAG Y Tế (Medical RAG System) - Phiên Bản Translation Bridge
+# Hệ Thống RAG Y Tế (Medical RAG System) - Single-Model Architecture
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, sử dụng kiến trúc **Pipeline 5 Tầng** độc đáo để kết hợp khả năng suy luận y khoa chuẩn xác của mô hình quốc tế với trải nghiệm tiếng Việt mượt mà.
+Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, sử dụng kiến trúc **Single-Model** tối giản nhưng mạnh mẽ, loại bỏ hoàn toàn module dịch thuật trung gian để tăng độ chính xác và tốc độ phản hồi.
 
-## 🚀 Kiến Trúc "Translation Bridge"
+## 🚀 Kiến Trúc Mới: "Direct Vietnamese Processing"
 
-Để tối ưu hóa độ chính xác y khoa trên phần cứng giới hạn (**Tesla P100 16GB**), hệ thống sử dụng quy trình xử lý 5 bước:
+Thay vì phải dịch qua lại (Vi-En-Vi), hệ thống sử dụng các mô hình ngôn ngữ lớn (LLM) thế hệ mới có khả năng hiểu và trả lời tiếng Việt tự nhiên cực tốt.
 
-1.  **Input**: Câu hỏi tiếng Việt.
-2.  **Bridge 1 (Vi → En)**: Dịch câu hỏi sang tiếng Anh chuyên ngành y bằng **VinAI-Translate**.
-3.  **Retrieval**: Tìm kiếm tài liệu y khoa tiếng Anh (độ chính xác cao hơn tiếng Việt) bằng **BGE-M3**.
-4.  **Reasoning**: Suy luận và trả lời bằng **MedGemma-4B** (Mô hình chuyên y tế của Google).
-5.  **Bridge 2 (En → Vi)**: Dịch câu trả lời về tiếng Việt bằng **VinAI-Translate**.
+**Quy trình xử lý đơn giản hóa (3 Bước):**
+
+1.  **Retrieval**: Tìm kiếm tài liệu y khoa liên quan từ cơ sở dữ liệu bằng **BGE-M3**.
+2.  **Reasoning**: Mô hình AI (Gemma 3 27B / Qwen 2.5 32B) phân tích tài liệu và suy luận trực tiếp bằng tiếng Việt.
+3.  **Response**: Trả về câu trả lời chuyên sâu kèm trích dẫn nguồn.
 
 ## 🧠 Các Mô Hình Cốt Lõi
 
-1.  **Medical Reasoning:** [**google/medgemma-4b-it**](https://huggingface.co/google/medgemma-4b-it)
-    *   Tối ưu hóa (Quantization 4-bit) để chạy mượt trên GPU 16GB.
-    *   Được huấn luyện chuyên sâu trên dữ liệu y khoa (Medical Papers, Guidelines).
+1.  **Medical Logic & Reasoning (Chọn 1):**
+    *   [**unsloth/gemma-3-27b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-3-27b-it-bnb-4bit) (Khuyến nghị): Mô hình Google mới nhất, khả năng suy luận vượt trội.
+    *   [**unsloth/Qwen2.5-32B-Instruct-bnb-4bit**](https://huggingface.co/unsloth/Qwen2.5-32B-Instruct-bnb-4bit): Hỗ trợ tiếng Việt tốt nhất hiện nay.
+    *   *Tất cả đều được tối ưu hóa (4-bit Quantization) để chạy trên GPU 16GB.*
 
-2.  **Translation Bridge:** [**vinai/vinai-translate**](https://huggingface.co/vinai/vinai-translate-vi2en)
-    *   Mô hình dịch máy tốt nhất cho cặp câu Việt-Anh hiện nay.
-    *   Hiểu rõ thuật ngữ y khoa Việt Nam.
+2.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
+    *   Giữ nguyên do hiệu năng vượt trội trong tìm kiếm đa ngôn ngữ.
 
-3.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
-    *   Giữ nguyên từ phiên bản trước do hiệu năng vượt trội.
+## ✨ Điểm Mạnh Mới
 
-## ✨ Điểm Mạnh & Lưu Ý
+### ✅ Tốc Độ Cao Hơn
+Loại bỏ 2 bước dịch thuật giúp giảm độ trễ từ 15s xuống còn **5-8 giây** (tùy độ dài câu trả lời).
 
-### ✅ Điểm Mạnh
-*   **Độ Chính Xác Y Khoa**: Sử dụng nguồn tri thức y học chuẩn tiếng Anh và mô hình MedGemma chuyên dụng.
-*   **Tiếng Việt Tự Nhiên**: Không bị "lơ lớ" nhờ module dịch thuật chuyên biệt của VinAI.
-*   **Minh Bạch**: Trích dẫn nguồn tài liệu `[Source X]` rõ ràng.
+### ✅ Tiếng Việt Tự Nhiên
+Các mô hình thế hệ mới (Gemma 3, Qwen 2.5) "tư duy" trực tiếp bằng tiếng Việt, tránh được các lỗi dịch thuật ngớ ngẩn (như "vi khuẩn que" thay vì "trực khuẩn").
 
-### ⚠️ Lưu Ý Quan Trọng
-*   **Độ Trễ (Latency)**: Do phải qua 2 bước dịch thuật và 1 bước suy luận, thời gian phản hồi sẽ khoảng **10-15 giây/câu**.
-*   **Cấu Hình**: Yêu cầu GPU tối thiểu **12GB VRAM** (Khuyến nghị 16GB P100/T4).
+### ✅ Less Point of Failure
+Hệ thống đơn giản hơn = Ít lỗi hơn. Không còn lo lắng về việc mô hình dịch bị lặp từ hay mất ngữ cảnh.
 
 ## 📦 Cài Đặt & Sử Dụng
 
 ### 1. Yêu Cầu
 *   Python 3.10+
-*   NVIDIA GPU (CUDA)
+*   NVIDIA GPU (CUDA) - VRAM **16GB** (Tesla P100/T4)
 
-### ⚠️ Quan Trọng: Cấp Quyền Model (BẮT BUỘC)
-Model **MedGemma** (`google/medgemma-4b-it`) là **Gated Model** (Model bị giới hạn). Trước khi chạy, bạn làm theo các bước sau:
-
-1.  Truy cập: [https://huggingface.co/google/medgemma-4b-it](https://huggingface.co/google/medgemma-4b-it)
-2.  Đăng nhập tài khoản Hugging Face và nhấn nút **Request Access** (Xin cấp quyền).
-3.  Chờ đến khi trang web hiện dòng thông báo màu xanh:
-    > "You have been granted access to this model"
-4.  Sau đó, bạn mới có thể tải và sử dụng model này.
-    *   *Mẹo: Nếu gặp lỗi 401/403 khi chạy code, hãy chạy lệnh `huggingface-cli login` trong terminal và nhập Token của bạn.*
+### ⚠️ Quan Trọng: Cấp Quyền Model
+Mô hình **Gemma 3** yêu cầu xin quyền truy cập. 
+1. Truy cập [Hugging Face Gemma 3](https://huggingface.co/google/gemma-3-27b-it).
+2. Nhấn "Request Access" và chấp nhận điều khoản.
+3. Đăng nhập terminal: `huggingface-cli login`
 
 ### 2. Cài Đặt
 ```bash
 pip install -r requirements.txt
 ```
-*Lưu ý: Cần cài đặt `sentencepiece` và `sacremoses` (đã có trong requirements.txt).*
 
 ### 3. Nạp Dữ Liệu (Ingest)
 Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/` và chạy:
@@ -68,11 +60,10 @@ python ingest.py
 ```bash
 python app.py
 ```
-*   Lần đầu chạy sẽ tải khoảng **8-10GB** models.
 *   Truy cập Web UI tại: `http://localhost:7860`
 
 ## 📂 Cấu Trúc Dự Án
-*   `app.py`: Pipeline 5 bước (Translation -> Retrieval -> Reasoning).
+*   `app.py`: Logic chính (Single-Model Pipeline).
 *   `ingest.py`: Xử lý và vector hóa tài liệu.
 *   `Medical_documents/`: Thư mục chứa PDF.
 *   `chroma_db/`: Cơ sở dữ liệu Vector.
