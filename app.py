@@ -3,8 +3,7 @@ import gradio as gr
 import torch
 from transformers import (
     AutoTokenizer, 
-    AutoModelForCausalLM, 
-    AutoModelForSeq2SeqLM,
+    AutoModelForCausalLM,
     BitsAndBytesConfig,
     TextIteratorStreamer
 )
@@ -21,20 +20,17 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
 
-# 1. TRANSLATION MODELS (The Bridge)
-VI2EN_MODEL_ID = "vinai/vinai-translate-vi2en"
-EN2VI_MODEL_ID = "vinai/vinai-translate-en2vi"
+# 🎯 SINGLE MODEL APPROACH (Choose ONE)
+# Option 1: Gemma 3 27B (RECOMMENDED)
+MODEL_ID = "unsloth/gemma-3-27b-it-unsloth-bnb-4bit"
 
-# 2. MEDICAL REASONING MODEL (The Brain)
-# Using MedGemma 4B or similar lightweight medical model compatible with P100
-REASONING_MODEL_ID = "unsloth/medgemma-4b-it-bnb-4bit" # Optimized 4-bit version if available
-# Fallback to standard if unsloth not found, but we will try to load optimized
-# Note: For this implementation, we will assume standard loading with BNB if specific unsloth binary isn't present, 
-# but pointing to the base google/medgemma-4b-it with BNB config is safer if unsloth path is uncertain.
-# Let's stick to the reliable path:
-REASONING_MODEL_ID = "google/medgemma-4b-it" 
+# Option 2: Qwen 2.5 32B (Best Vietnamese support)
+# MODEL_ID = "unsloth/Qwen2.5-32B-Instruct-bnb-4bit"
 
-# 3. RETRIEVAL MODELS
+# Option 3: Llama 3.3 70B (Needs more optimization)
+# MODEL_ID = "unsloth/Llama-3.3-70B-Instruct-bnb-4bit"
+
+# RETRIEVAL MODELS
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 EMBEDDING_MODEL = "BAAI/bge-m3"
 
@@ -44,41 +40,20 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # TWEAKABLE PARAMETERS
 RELEVANCE_THRESHOLD = 0.3
 TOP_K_RETRIEVAL = 10
-TOP_K_RERANK = 5 # Reduced slightly to save context window
+TOP_K_RERANK = 5
 MAX_NEW_TOKENS = 1024
-TEMPERATURE = 0.2 # Lower for medical accuracy
+TEMPERATURE = 0.2  # Lower for medical accuracy
+MAX_CONTEXT_LENGTH = 4096  # Adjust based on model's context window
 
 # SECURITY
 DEFAULT_AUTH = ("admin", "123456")
 
 print(f"Device: {DEVICE}")
+print(f"Selected Model: {MODEL_ID}")
 
 # --- INITIALIZATION ---
 
-# 1. Load Translation Models (FP16 for speed/memory balance)
-print("Loading Translation Bridges...")
-try:
-    # Vi -> En
-    vi2en_tokenizer = AutoTokenizer.from_pretrained(VI2EN_MODEL_ID)
-    vi2en_model = AutoModelForSeq2SeqLM.from_pretrained(
-        VI2EN_MODEL_ID,
-        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-        device_map="auto"
-    )
-    
-    # En -> Vi
-    en2vi_tokenizer = AutoTokenizer.from_pretrained(EN2VI_MODEL_ID)
-    en2vi_model = AutoModelForSeq2SeqLM.from_pretrained(
-        EN2VI_MODEL_ID,
-        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-        device_map="auto"
-    )
-    print("✅ Translation models loaded.")
-except Exception as e:
-    logger.error(f"Error loading translation models: {e}")
-    raise e
-
-# 2. Load Retriever & Reranker
+# 1. Load Retriever & Reranker
 print("Loading Retrieval System...")
 embedding_function = HuggingFaceEmbeddings(
     model_name=EMBEDDING_MODEL,
@@ -94,8 +69,8 @@ else:
 
 reranker = CrossEncoder(RERANKER_MODEL, device=DEVICE)
 
-# 3. Load Medical Reasoning Model (4-bit Quantized)
-print(f"Loading Medical Brain ({REASONING_MODEL_ID})...")
+# 2. Load Main RAG Model (4-bit Quantized)
+print(f"Loading RAG Model ({MODEL_ID})...")
 try:
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -104,93 +79,84 @@ try:
         bnb_4bit_use_double_quant=True
     )
     
-    reasoning_tokenizer = AutoTokenizer.from_pretrained(REASONING_MODEL_ID)
-    reasoning_model = AutoModelForCausalLM.from_pretrained(
-        REASONING_MODEL_ID,
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
         quantization_config=bnb_config,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
+        attn_implementation="flash_attention_2"  # Enable Flash Attention if available
     )
-    print("✅ Medical Reasoning Model loaded.")
+    
+    # Set padding token if not set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        
+    print("✅ Model loaded successfully.")
+    print(f"   Model type: {type(model).__name__}")
+    print(f"   Memory allocated: {torch.cuda.memory_allocated(0)/1e9:.2f} GB")
+    
 except Exception as e:
-    logger.error(f"Error loading Medical Model: {e}")
-    # Fallback logic could go here, but for now we raise
+    logger.error(f"Error loading model: {e}")
     raise e
 
 # --- HELPER FUNCTIONS ---
 
-def translate(text, tokenizer, model, max_length=1024):
-    """Generic translation function."""
-    if not text or not text.strip():
-        return ""
-    
-    try:
-        input_ids = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=max_length).input_ids.to(DEVICE)
-        with torch.no_grad():
-            output_ids = model.generate(
-                input_ids,
-                max_length=max_length,
-                num_beams=5,  # Increased beams for better quality
-                early_stopping=True,
-                repetition_penalty=1.2, # Stronger penalty for loops
-                no_repeat_ngram_size=3, # Prevent phrase repetition
-                length_penalty=1.0 
-            )
-        return tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    except Exception as e:
-        logger.error(f"Translation failed: {e}")
-        return text # Return original on failure
-
 def format_system_prompt(context):
     """
-    Creates a strict medical system prompt in ENGLISH for MedGemma.
+    Creates a medical system prompt in Vietnamese.
     """
-    return (
-        "You are an expert medical AI assistant. Answer the user's question based strictly on the provided context.\n"
-        "If the information is not in the context, say 'Insufficient information in the provided documents'.\n"
-        "Do not hallucinate medical advice.\n\n"
-        "Context:\n"
-        f"{context}\n\n"
-        "Reference citations using [Source X] format."
-        "Answer concisely and professionally."
-    )
+    return f"""Bạn là trợ lý y tế AI chuyên nghiệp. Nhiệm vụ của bạn:
+
+1. Trả lời câu hỏi dựa CHÍNH XÁC trên ngữ cảnh được cung cấp
+2. Nếu thông tin không có trong ngữ cảnh, hãy nói rõ "Thông tin không có trong tài liệu"
+3. KHÔNG bịa đặt thông tin y khoa
+4. Trích dẫn nguồn bằng [Nguồn X]
+5. Trả lời ngắn gọn, chuyên nghiệp
+
+NGỮ CẢNH:
+{context}
+
+LƯU Ý: Đây chỉ là thông tin tham khảo. Luôn tham khảo ý kiến bác sĩ chuyên khoa."""
+
+def truncate_context(context, max_tokens=2048):
+    """Truncate context to fit within token limit."""
+    tokens = tokenizer.encode(context, add_special_tokens=False)
+    if len(tokens) > max_tokens:
+        tokens = tokens[:max_tokens]
+        context = tokenizer.decode(tokens)
+        logger.warning(f"Context truncated to {max_tokens} tokens")
+    return context
 
 def chat(message, history, progress=gr.Progress()):
     """
-    5-Stage Pipeline:
-    1. Vi -> En
-    2. Retrieve
-    3. Reason (En)
-    4. En -> Vi
-    5. Return
+    Simplified 3-Stage Pipeline:
+    1. Retrieve
+    2. Reason (Single Model - Vietnamese capable)
+    3. Return
     """
     if not retriever:
-        yield "Hệ thống chưa có dữ liệu. Vui lòng chạy ingest.py."
+        yield "❌ Hệ thống chưa có dữ liệu. Vui lòng chạy ingest.py."
         return
 
     try:
-        # STEP 1: Translate Input (Vi -> En)
-        progress(0.1, desc="🔍 Bước 1: Dịch câu hỏi sang tiếng Anh...")
-        en_query = translate(message, vi2en_tokenizer, vi2en_model)
-        yield f"🔄 Đã dịch: {en_query}\n\n⏳ Đang tìm kiếm tài liệu..."
-        
-        # STEP 2: Retrieval
-        progress(0.3, desc="📚 Bước 2: Tìm kiếm dữ liệu y khoa...")
-        docs = retriever.invoke(en_query) # Retrieve using English query
+        # STEP 1: Retrieval
+        progress(0.2, desc="📚 Đang tìm kiếm tài liệu y khoa...")
+        docs = retriever.invoke(message)
         
         if not docs:
-            yield "Không tìm thấy tài liệu phù hợp."
+            yield "❌ Không tìm thấy tài liệu phù hợp."
             return
 
         # Rerank
         doc_texts = [d.page_content for d in docs]
-        scores = reranker.predict([[en_query, t] for t in doc_texts])
+        scores = reranker.predict([[message, t] for t in doc_texts])
         top_indices = [i for i in np.argsort(scores)[::-1] if scores[i] > RELEVANCE_THRESHOLD][:TOP_K_RERANK]
         top_docs = [docs[i] for i in top_indices]
         
         if not top_docs:
-             yield "Không tìm thấy tài liệu đủ độ tin cậy."
-             return
+            yield "❌ Không tìm thấy tài liệu đủ độ tin cậy (confidence threshold not met)."
+            return
 
         # Build Context
         context_parts = []
@@ -198,54 +164,61 @@ def chat(message, history, progress=gr.Progress()):
         for i, doc in enumerate(top_docs):
             src = os.path.basename(doc.metadata.get('source', 'Unknown'))
             page = doc.metadata.get('page', '?')
-            context_parts.append(f"[Source {i+1}] {doc.page_content} (File: {src}, Page: {page})")
-            sources_list.append(f"- [Source {i+1}] {src} (Trang {page})")
+            context_parts.append(f"[Nguồn {i+1}] {doc.page_content}\n(File: {src}, Trang: {page})")
+            sources_list.append(f"- **[Nguồn {i+1}]** {src} (Trang {page})")
             
         context_str = "\n\n".join(context_parts)
         
-        # STEP 3: Medical Reasoning (English)
-        progress(0.5, desc="🧠 Bước 3: Phân tích y khoa (MedGemma)...")
+        # Truncate context if too long
+        context_str = truncate_context(context_str, max_tokens=MAX_CONTEXT_LENGTH - 1024)
+        
+        # STEP 2: Medical Reasoning
+        progress(0.5, desc="🧠 Đang phân tích với AI model...")
         
         system_prompt = format_system_prompt(context_str)
-        # Apply chat template
-        messages = [
-            {"role": "user", "content": system_prompt + f"\n\nQuestion: {en_query}"}
-        ]
         
-        inputs = reasoning_tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_tensors="pt",
-            return_dict=True
-        ).to(DEVICE)
+        # Construct prompt based on model type
+        if "gemma" in MODEL_ID.lower():
+            # Gemma format
+            full_prompt = f"{system_prompt}\n\nCâu hỏi: {message}\n\nTrả lời:"
+        elif "qwen" in MODEL_ID.lower():
+            # Qwen format
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ]
+            full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        else:
+            # Generic format
+            full_prompt = f"{system_prompt}\n\nCâu hỏi: {message}\n\nTrả lời:"
+        
+        inputs = tokenizer(full_prompt, return_tensors="pt", truncation=True, max_length=MAX_CONTEXT_LENGTH).to(DEVICE)
 
-        streamer = TextIteratorStreamer(reasoning_tokenizer, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
         generate_kwargs = dict(
             **inputs,
             streamer=streamer,
             max_new_tokens=MAX_NEW_TOKENS,
             do_sample=True,
             temperature=TEMPERATURE,
+            top_p=0.9,
+            repetition_penalty=1.15,
         )
         
-        t = Thread(target=reasoning_model.generate, kwargs=generate_kwargs)
+        t = Thread(target=model.generate, kwargs=generate_kwargs)
         t.start()
         
-        en_response = ""
+        # Stream response
+        response = ""
         for token in streamer:
-            en_response += token
-            # Optional: Show thinking process if desired, but might be messy
+            response += token
+            # Real-time streaming to UI
+            yield response + "\n\n⏳ Đang tạo câu trả lời..."
         
-        # STEP 4: Translate Output (En -> Vi)
-        progress(0.8, desc="🇻🇳 Bước 4: Dịch câu trả lời sang tiếng Việt...")
-        vi_response = translate(en_response, en2vi_tokenizer, en2vi_model)
-        
-        # STEP 5: Final Output
+        # STEP 3: Final Output with Sources
         final_output = (
-            f"{vi_response}\n\n"
-            f"---\n**📚 Nguồn tham khảo:**\n" + "\n".join(sources_list) + "\n\n"
-            f"*(Original Reasoning: {en_response[:100]}...)*" # Optional debug info
+            f"{response.strip()}\n\n"
+            f"---\n### 📚 Nguồn tham khảo:\n" + "\n".join(sources_list)
         )
         
         yield final_output
@@ -255,29 +228,47 @@ def chat(message, history, progress=gr.Progress()):
         yield f"❌ Lỗi hệ thống: {str(e)}"
 
 # --- UI SETUP ---
-with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG System (MedGemma)", fill_height=True) as demo:
+with gr.Blocks(theme=gr.themes.Soft(), title="Medical RAG System", fill_height=True) as demo:
     gr.Markdown(
-        "# 🏥 Hệ thống Trợ lý Y khoa Chuyên sâu\n"
-        "**Kiến trúc:** 5-Stage Pipeline (Vi-En Bridge + MedGemma Reasoning)\n"
-        "**Mô hình:** VinAI-Translate & MedGemma-4B-IT"
+        f"# 🏥 Hệ thống Trợ lý Y khoa AI\n"
+        f"**Model:** {MODEL_ID.split('/')[-1]}\n"
+        f"**Kiến trúc:** Single-Model RAG (No Translation Bridge)\n"
+        f"**GPU:** Tesla P100 16GB"
     )
     
     with gr.Accordion("ℹ️ Lưu ý quan trọng", open=False):
         gr.Markdown(
-            "- Hệ thống sử dụng mô hình dịch thuật để tận dụng kiến thức y khoa tiếng Anh.\n"
-            "- Thời gian phản hồi có thể lâu hơn (10-15s) do quy trình xử lý đa bước.\n"
-            "- Luôn kiểm tra lại với bác sĩ chuyên khoa."
+            "- ✅ **Không còn translation bridge** - câu trả lời chính xác hơn\n"
+            "- ⚡ **Tốc độ nhanh hơn** - chỉ 1 model duy nhất\n"
+            "- 🇻🇳 **Native Vietnamese** - hiểu tiếng Việt tự nhiên\n"
+            "- ⚕️ **Chỉ mang tính tham khảo** - luôn tham khảo bác sĩ"
         )
 
     gr.ChatInterface(
         fn=chat,
-        description="Hỏi đáp y khoa với quy trình suy luận chuyên sâu.",
+        description="Đặt câu hỏi y khoa bằng tiếng Việt. Hệ thống sẽ tìm kiếm và phân tích tài liệu để trả lời.",
         examples=[
             "Triệu chứng của bệnh tiểu đường type 2 là gì?",
             "Tác dụng phụ của thuốc aspirin?",
-            "Làm sao để phòng ngừa bệnh tim mạch?"
-        ]
+            "Làm sao để phòng ngừa bệnh tim mạch?",
+            "Chế độ ăn cho người huyết áp cao?"
+        ],
+        retry_btn="🔄 Thử lại",
+        undo_btn="↩️ Hoàn tác",
+        clear_btn="🗑️ Xóa hết"
+    )
+    
+    gr.Markdown(
+        "\n---\n"
+        "**⚠️ Cảnh báo y tế:** Thông tin từ hệ thống chỉ mang tính tham khảo. "
+        "Không thay thế cho chẩn đoán và điều trị của bác sĩ chuyên khoa."
     )
 
 if __name__ == "__main__":
-    demo.queue().launch(share=True, server_name="0.0.0.0", auth=DEFAULT_AUTH)
+    demo.queue().launch(
+        share=True, 
+        server_name="0.0.0.0", 
+        auth=DEFAULT_AUTH,
+        show_error=True
+    )
+    
