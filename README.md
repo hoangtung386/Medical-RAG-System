@@ -1,74 +1,72 @@
-# Hệ Thống RAG Y Tế (Medical RAG System) - Phiên Bản Ministral Reasoning
+# Medical RAG System (Single-Model Architecture)
 
-Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** chuyên sâu cho lĩnh vực y tế, được tối ưu hóa đặc biệt cho **tiếng Việt** và khả năng **suy luận logic (Reasoning)**. Hệ thống tra cứu tài liệu y khoa (PDF) và trả lời câu hỏi chuyên sâu, chính xác.
+This project is a high-performance **Retrieval Augmented Generation (RAG)** application optimized for the medical domain. It utilizes a **Single-Model Architecture** to deliver precise, context-aware medical answers directly in Vietnamese, eliminating the need for intermediate translation layers and significantly reducing latency.
 
-## 🚀 Công Nghệ Cốt Lõi
+## 🚀 New Architecture: "Direct Vietnamese Processing"
 
-Hệ thống sử dụng các mô hình tiên tiến nhất (SOTA) trong phân khúc Open Source:
+By leveraging state-of-the-art Large Language Models (LLMs) with strong native support for Vietnamese, the system bypasses the traditional "translation bridge" approach (Vi -> En -> Vi). This results in a cleaner pipeline and more natural language generation.
 
-1.  **Reasoning Model (Tư Duy):** [**mistralai/Ministral-3-8B-Reasoning-2512**](https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512)
-    *   Mô hình ngôn ngữ thế hệ mới với khả năng suy luận mạnh mẽ.
-    *   **Tối ưu hóa đa ngôn ngữ**, đặc biệt là khả năng xử lý và trả lời tiếng Việt tự nhiên, chính xác hơn nhiều so với các phiên bản trước.
-    *   Tuân thủ nghiêm ngặt các hướng dẫn an toàn và cấu trúc trả lời.
+**Simplified 3-Stage Workflow:**
 
-2.  **Embedding Model (Vector hóa):** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
-    *   Mô hình embedding đa ngôn ngữ tốt nhất hiện nay.
-    *   Hỗ trợ vector mật độ cao (Dense Retrieval) và thưa (Sparse Retrieval), tối ưu cho tìm kiếm y khoa.
+1.  **Retrieval**: Advanced semantic search using **BGE-M3** to locate relevant medical documents.
+2.  **Reasoning**: **Gemma 2 9B** (or Qwen 2.5) analyzes the retrieved context and performs medical reasoning directly in Vietnamese.
+3.  **Response**: Generation of evidence-based answers with strict source citation.
 
-## ✨ Tính Năng Nổi Bật
+## 🧠 Core Models
 
--   **Vietnamese First:** Hệ thống được tinh chỉnh để **luôn trả lời bằng tiếng Việt**, loại bỏ hiện tượng pha trộn ngôn ngữ (Anh/Việt) thường gặp.
--   **Deep Reasoning:** Không chỉ tìm kiếm, mô hình còn phân tích, tổng hợp và suy luận từ nhiều nguồn thông tin để trả lời các câu hỏi phức tạp (Ví dụ: So sánh thuốc, phác đồ điều trị).
--   **Độ Chính Xác Cao**:
-    -   Quy trình 3 bước: **Tìm kiếm (Retrieve) -> Xếp hạng lại (Rerank) -> Suy luận (Reason)**.
-    -   Sử dụng Cross-Encoder để lọc bỏ thông tin nhiễu.
--   **Minh Bạch Nguồn Tin**: Mọi thông tin đưa ra đều đi kèm trích dẫn cụ thể `[Source X]` (Tên file, Số trang).
--   **Giao diện Thông Minh**: Gradio UI hiển thị trạng thái xử lý chi tiết và các mẹo đặt câu hỏi hiệu quả.
+1.  **Medical Logic & Reasoning:**
+    *   [**unsloth/gemma-2-9b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-2-9b-it-bnb-4bit) (**Current**): The optimal balance between inference speed and reasoning capability. Optimized for 16GB VRAM GPUs (P100) using 4-bit quantization.
 
-## 🛠 Yêu Cầu Hệ Thống
+2.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
+    *   Retained for its State-of-the-Art multimedia and multilingual retrieval performance.
 
--   **OS**: Windows / Linux
--   **Python**: 3.10+
--   **GPU**: NVIDIA GPU (Khuyến nghị **VRAM 12GB+** để chạy mượt mà Ministral-3-8B ở chế độ 4-bit + BGE-M3).
--   **RAM**: 16GB+
+## 🖥️ System Interface
 
-## 📦 Cài Đặt & Sử Dụng
+Below are screenshots of the running system:
 
-1.  **Cài đặt thư viện**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+**1. Login Screen**
+Secure access via predefined credentials (`admin` / `123456`).
+![Login Interface](/Images/Login_interface.png)
 
-2.  **Chuẩn bị dữ liệu (Ingest)**:
-    *   Copy file PDF tài liệu y khoa vào thư mục `Medical_documents/`.
-    *   Chạy lệnh nạp dữ liệu (tạo vector DB):
-    ```bash
-    python ingest.py
-    ```
-    *(Chạy lại lệnh này mỗi khi có tài liệu mới)*
+**2. Workspace (Chat Interface)**
+The primary interface for medical professionals to query the knowledge base.
+![Workspace Interface](/Images/Working_interface.png)
 
-3.  **Khởi chạy Chatbot**:
-    ```bash
-    python app.py
-    ```
-    *   Lần đầu chạy sẽ tải model (~5-6GB).
-    *   Truy cập Web UI tại: `http://localhost:7860`
+## 📦 Installation & Usage
 
-## 🔑 Tài Khoản Truy Cập
+### 1. Requirements
+*   **Python**: 3.10+
+*   **Hardware**: NVIDIA GPU with CUDA support (Minimum **16GB VRAM**, e.g., Tesla P100/T4).
 
-Hệ thống có bảo mật đăng nhập cơ bản:
--   **Username**: `admin`
--   **Password**: `123456`
-*(Thông tin này có thể đổi trong file `app.py`)*
+### ⚠️ Prerequisite: Model Access (Gated Model)
+The **Gemma 2** model requires access approval from Hugging Face.
+1. Visit [Hugging Face Gemma 2](https://huggingface.co/google/gemma-2-9b-it).
+2. Click "Request Access" and agree to the terms.
+3. Login via terminal: `huggingface-cli login` (enter your write token).
 
-## 📂 Cấu Trúc Dự Án
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
--   `Medical_documents/`: Thư mục chứa tài liệu PDF đầu vào.
--   `chroma_db/`: Cơ sở dữ liệu vector (ChromaDB).
--   `ingest.py`: Script xử lý tài liệu (Sử dụng BGE-M3 + Smart Chunking 1500 tokens).
--   `app.py`: Ứng dụng chính (Gradio UI + Ministral Reasoning Logic).
+### 3. Data Ingestion
+Place your medical PDF documents into the `Medical_documents/` directory and run:
+```bash
+python ingest.py
+```
 
-## ⚠️ Lưu Ý
+### 4. Launch Application
+```bash
+python app.py
+```
+*   Access the Web UI at: `http://localhost:7860`
 
--   **Thời gian phản hồi**: Với các câu hỏi phức tạp, mô hình cần **10-15 giây** để "suy nghĩ" và tổng hợp thông tin.
--   **Cảnh báo y tế**: Hệ thống là công cụ hỗ trợ tra cứu tham khảo. **KHÔNG** sử dụng thay thế bác sĩ trong chẩn đoán và điều trị thực tế.
+## 📂 Project Structure
+*   `app.py`: Main application logic (Single-Model RAG Pipeline).
+*   `ingest.py`: Document processing and vector ingestion script.
+*   `Medical_documents/`: Directory for input PDF files.
+*   `chroma_db/`: Vector database storage (ChromaDB).
+*   `Images/`: Interface screenshots.
+
+---
+**Medical Disclaimer**: This AI system is for informational and reference purposes only. It is not intended to replace professional medical diagnosis, advice, or treatment. Always consult with a qualified healthcare provider.
