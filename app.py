@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 # --- CONFIGURATION ---
 
 # 🎯 SINGLE MODEL APPROACH (Choose ONE)
-# Option 1: Gemma 3 27B (RECOMMENDED)
-MODEL_ID = "unsloth/gemma-3-27b-it-unsloth-bnb-4bit"
+# Option 1: Qwen 2.5 14B (BEST FOR 16GB VRAM - FAST & ACCURATE)
+MODEL_ID = "unsloth/Qwen2.5-14B-Instruct-bnb-4bit"
 
-# Option 2: Qwen 2.5 32B (Best Vietnamese support)
-# MODEL_ID = "unsloth/Qwen2.5-32B-Instruct-bnb-4bit"
+# Option 2: Gemma 2 9B (Alternative, very fast)
+# MODEL_ID = "unsloth/gemma-2-9b-it-bnb-4bit"
 
-# Option 3: Llama 3.3 70B (Needs more optimization)
-# MODEL_ID = "unsloth/Llama-3.3-70B-Instruct-bnb-4bit"
+# Option 3: Gemma 3 27B (⚠️ REQUIRES >24GB VRAM or CPU OFFLOAD - VERY SLOW ON P100)
+# MODEL_ID = "unsloth/gemma-3-27b-it-unsloth-bnb-4bit"
 
 # RETRIEVAL MODELS
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
@@ -76,7 +76,8 @@ try:
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True
+        bnb_4bit_use_double_quant=True,
+        llm_int8_enable_fp32_cpu_offload=True # Enable if VRAM < Model Size
     )
     
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
