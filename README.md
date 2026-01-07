@@ -42,6 +42,16 @@ Dự án này là một ứng dụng **Retrieval Augmented Generation (RAG)** ch
 *   Python 3.10+
 *   NVIDIA GPU (CUDA)
 
+### ⚠️ Quan Trọng: Cấp Quyền Model (BẮT BUỘC)
+Model **MedGemma** (`google/medgemma-4b-it`) là **Gated Model** (Model bị giới hạn). Trước khi chạy, bạn làm theo các bước sau:
+
+1.  Truy cập: [https://huggingface.co/google/medgemma-4b-it](https://huggingface.co/google/medgemma-4b-it)
+2.  Đăng nhập tài khoản Hugging Face và nhấn nút **Request Access** (Xin cấp quyền).
+3.  Chờ đến khi trang web hiện dòng thông báo màu xanh:
+    > "You have been granted access to this model"
+4.  Sau đó, bạn mới có thể tải và sử dụng model này.
+    *   *Mẹo: Nếu gặp lỗi 401/403 khi chạy code, hãy chạy lệnh `huggingface-cli login` trong terminal và nhập Token của bạn.*
+
 ### 2. Cài Đặt
 ```bash
 pip install -r requirements.txt
