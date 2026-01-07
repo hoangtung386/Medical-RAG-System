@@ -15,7 +15,7 @@ By leveraging state-of-the-art Large Language Models (LLMs) with strong native s
 ## 🧠 Core Models
 
 1.  **Medical Logic & Reasoning:**
-    *   [**unsloth/gemma-2-9b-it-bnb-4bit**](https://huggingface.co/unsloth/gemma-2-9b-it-bnb-4bit) (**Current**): The optimal balance between inference speed and reasoning capability. Optimized for 16GB VRAM GPUs (P100) using 4-bit quantization.
+    *   [**unsloth/gpt-oss-20b-bnb-4bit**](https://huggingface.co/unsloth/gpt-oss-20b-bnb-4bit) (**Current**): A powerful 20B parameter model optimized for 4-bit quantization, offering superior reasoning capabilities while fitting within 16GB VRAM.
 
 2.  **Embedding:** [**BAAI/bge-m3**](https://huggingface.co/BAAI/bge-m3)
     *   Retained for its State-of-the-Art multimedia and multilingual retrieval performance.
@@ -36,13 +36,7 @@ The primary interface for medical professionals to query the knowledge base.
 
 ### 1. Requirements
 *   **Python**: 3.10+
-*   **Hardware**: NVIDIA GPU with CUDA support (Minimum **16GB VRAM**, e.g., Tesla P100/T4).
-
-### ⚠️ Prerequisite: Model Access (Gated Model)
-The **Gemma 2** model requires access approval from Hugging Face.
-1. Visit [Hugging Face Gemma 2](https://huggingface.co/google/gemma-2-9b-it).
-2. Click "Request Access" and agree to the terms.
-3. Login via terminal: `huggingface-cli login` (enter your write token).
+*   **Hardware**: NVIDIA GPU with CUDA support (Minimum **16GB VRAM** to load the 20B model).
 
 ### 2. Install Dependencies
 ```bash
