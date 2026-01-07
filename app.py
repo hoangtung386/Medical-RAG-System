@@ -84,8 +84,7 @@ try:
         MODEL_ID,
         quantization_config=bnb_config,
         device_map="auto",
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2"  # Enable Flash Attention if available
+        trust_remote_code=True
     )
     
     # Set padding token if not set
@@ -104,20 +103,26 @@ except Exception as e:
 
 def format_system_prompt(context):
     """
-    Creates a medical system prompt in Vietnamese.
+    Creates a strict medical system prompt in ENGLISH for better instruction following.
+    The model is instructed to process mixed (Eng/Vi) context but respond ONLY in Vietnamese.
     """
-    return f"""Bạn là trợ lý y tế AI chuyên nghiệp. Nhiệm vụ của bạn:
+    return f"""You are a helpful and professional Medical AI Assistant.
 
-1. Trả lời câu hỏi dựa CHÍNH XÁC trên ngữ cảnh được cung cấp
-2. Nếu thông tin không có trong ngữ cảnh, hãy nói rõ "Thông tin không có trong tài liệu"
-3. KHÔNG bịa đặt thông tin y khoa
-4. Trích dẫn nguồn bằng [Nguồn X]
-5. Trả lời ngắn gọn, chuyên nghiệp
+### INSTRUCTIONS:
+1. **LANGUAGE**: The user will ask in **Vietnamese**. You MUST answer in **Vietnamese** regardless of the context's language.
+2. **CONTEXT**: You are provided with medical documents below. They may be in English or Vietnamese.
+   - If context is English: Translate the relevant medical knowledge to Vietnamese accurately.
+   - If context is Vietnamese: Use it directly but refine the phrasing.
+3. **ACCURACY**: Answer based **ONLY** on the provided context. If the answer is not in the context, state: "Thông tin không có trong tài liệu được cung cấp." (Do not hallucinate).
+4. **CITATION**: Every claim must be cited with [Source X].
+   - Example directly in text: "Theo nghiên cứu [Source 1], thuốc A có tác dụng..."
+   - Or at the end of the sentence: "Thuốc A có tác dụng phụ B [Source 2]."
+5. **TONE**: Professional, empathetic, and objective medical tone.
 
-NGỮ CẢNH:
+### REFERENCE CONTEXT:
 {context}
 
-LƯU Ý: Đây chỉ là thông tin tham khảo. Luôn tham khảo ý kiến bác sĩ chuyên khoa."""
+### USER QUESTION (Vietnamese):"""
 
 def truncate_context(context, max_tokens=2048):
     """Truncate context to fit within token limit."""
