@@ -76,37 +76,64 @@ reranker = CrossEncoder(RERANKER_MODEL, device=DEVICE)
 print(f"Loading Reasoning Model {MODEL_ID}...")
 
 try:
-    # Ministral supports 4-bit quantization
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    import torch
+    
+    # Force update config
+    from transformers import AutoConfig
+    config = AutoConfig.from_pretrained(MODEL_ID, trust_remote_code=True)
+    
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_ID, 
+        trust_remote_code=True,
+        use_fast=True  # Thêm dòng này
+    )
+    
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True  # Extra optimization
+        bnb_4bit_use_double_quant=True
     )
-    
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    
-    # Important: Set pad_token if not set (Ministral sometimes needs this)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
     
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
-        quantization_config=quantization_config if DEVICE == "cuda" else None,
-        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-        device_map="auto" if DEVICE == "cuda" else None,
-        trust_remote_code=True
+        config=config,  # Thêm dòng này
+        quantization_config=quantization_config,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        trust_remote_code=True,
+        attn_implementation="flash_attention_2"  # Nếu có Flash Attention
     )
     
-    if DEVICE == "cpu":
-        logger.warning("Running on CPU! This will be slow.")
-        model.to("cpu")
+    print("✅ Ministral loaded successfully!")
     
-    print("Model loaded successfully!")
-        
 except Exception as e:
-    logger.error(f"Error loading {MODEL_ID}: {e}")
-    raise e
+    print(f"❌ Lỗi load Ministral: {e}")
+    print("Đang thử fallback sang Mistral 7B v0.3...")
+    
+    # FALLBACK: Dùng Mistral cũ nếu Ministral không chạy
+    MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.3"
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    
+    if 'quantization_config' not in locals():
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True
+        )
+    
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
+        quantization_config=quantization_config,
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    print("✅ Fallback to Mistral 7B v0.3")
 
 # HELPER FUNCTIONS
 
