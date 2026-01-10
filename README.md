@@ -12,6 +12,14 @@ By leveraging state-of-the-art Large Language Models (LLMs) with strong native s
 2.  **Reasoning**: **Gpt-oss 20b bnb 4bit** analyzes the retrieved context and performs medical reasoning directly in Vietnamese.
 3.  **Response**: Generation of evidence-based answers with strict source citation.
 
+## 📄 Enhanced Document Processing (New!)
+
+The system now features a robust ingestion pipeline powered by **PaddleOCR** and **PyMuPDF**, capable of handling complex medical documents:
+
+*   **Hybrid OCR Engine**: Automatically detects and extracts text from scanned PDFs and embedded images using **PaddleOCR** (optimized for mixed Vietnamese/English content).
+*   **Table Intelligence**: Special handling for medical tables (lab results, dosage charts) to preserve structural integrity during chunking.
+*   **Smart Chunking**: Context-aware splitting that respects table boundaries and document sections, ensuring retrieval accuracy.
+
 ## 🧠 Core Models
 
 1.  **Medical Logic & Reasoning:**

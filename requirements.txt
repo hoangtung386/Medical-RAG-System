@@ -17,6 +17,18 @@ sentence-transformers>=2.3.0
 
 # Document Processing
 pypdf>=4.0.0
+PyMuPDF>=1.23.0  # Better PDF handling with image extraction
+pdf2image>=1.16.3  # Convert PDF pages to images
+pillow>=10.0.0  # Image processing
+
+# OCR & Table Detection
+paddleocr>=2.7.0  # Main OCR engine
+paddlepaddle>=2.5.0  # PaddlePaddle framework (CPU version)
+# paddlepaddle-gpu>=2.5.0  # Use this if you have CUDA (uncomment and remove CPU version)
+
+# Table Processing
+pdfplumber>=0.10.0  # Better table extraction
+tabulate>=0.9.0  # Format tables nicely
 
 # UI
 gradio>=4.0.0
@@ -30,3 +42,5 @@ numpy>=1.24.0
 mistral-common>=1.5.0
 sentencepiece>=0.1.99
 sacremoses>=0.0.53
+opencv-python>=4.8.0  # Required by PaddleOCR
+shapely>=2.0.0  # Geometry operations for OCR
